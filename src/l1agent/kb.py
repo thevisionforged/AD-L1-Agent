@@ -35,6 +35,12 @@ _SYNONYMS = {
     "share": ["shared", "folder"], "drive": ["folder", "share"], "permission": ["access"], "denied": ["access"],
     "contractor": ["expired"], "expire": ["expired"], "expiring": ["expired"],
     "printer": ["printer"], "mail": ["outlook"], "email": ["outlook"],
+    # Microsoft Entra sign-in error codes -> topic words (source: Entra error code reference, KB-MS-001)
+    "aadsts50053": ["lockout", "locked"], "aadsts50126": ["password"], "aadsts50055": ["password", "expired"],
+    "aadsts50144": ["password", "expired"], "aadsts50057": ["disabled"], "aadsts50034": ["account"],
+    "aadsts50076": ["mfa"], "aadsts50079": ["mfa", "register"], "aadsts50072": ["mfa", "register"],
+    "aadsts50074": ["mfa"], "aadsts53003": ["conditional", "access"], "aadsts50133": ["password", "session"],
+    "aadsts50173": ["password", "session"],
 }
 
 
@@ -56,19 +62,26 @@ class Chunk:
     category: str
     subcategory: str
     text: str
+    audience: str = "end user"          # "end user" or "engineer"
+    source_urls: tuple[str, ...] = ()   # public Microsoft pages the article is based on
 
     def as_dict(self, max_chars: int = 900) -> dict:
-        return {
+        d = {
             "source_id": self.source_id,
             "article": f"{self.article_id}: {self.title}",
             "section": self.section,
             "text": self.text[:max_chars],
         }
+        if self.source_urls:
+            d["based_on"] = list(self.source_urls)
+        return d
 
 
 _HEAD = re.compile(r"^# (KB-[A-Z]+-\d+): (.+)$", re.M)
 _META = re.compile(r"^Category: (.+?) \| Subcategory: (.+)$", re.M)
 _SECTION = re.compile(r"^## \[(s\d+)\] (.+)$", re.M)
+_AUDIENCE = re.compile(r"^Audience: (.+)$", re.M)
+_SOURCE = re.compile(r"^Source: (https://\S+)$", re.M)
 
 
 def load_chunks(kb_dir: Path) -> list[Chunk]:
@@ -81,12 +94,15 @@ def load_chunks(kb_dir: Path) -> list[Chunk]:
         article_id, title = head.group(1), head.group(2).strip()
         meta = _META.search(raw)
         category, subcategory = (meta.group(1).strip(), meta.group(2).strip()) if meta else ("", "")
+        aud = _AUDIENCE.search(raw)
+        audience = aud.group(1).strip().lower() if aud else "end user"
+        urls = tuple(_SOURCE.findall(raw))
         sections = list(_SECTION.finditer(raw))
         for i, m in enumerate(sections):
             end = sections[i + 1].start() if i + 1 < len(sections) else len(raw)
             body = raw[m.end():end].strip()
             chunks.append(Chunk(f"{article_id}#{m.group(1)}", article_id, title, m.group(2).strip(),
-                                category, subcategory, body))
+                                category, subcategory, body, audience, urls))
     return chunks
 
 
@@ -160,8 +176,10 @@ class KnowledgeBase:
             self._vectors, self.embedder, self.retrieval_mode = None, None, "bm25"
             return False
 
-    def search(self, query: str, top_k: int = 4, min_score: float = 1.0) -> list[tuple[Chunk, float]]:
-        bm25 = self.search_bm25(query, top_k=max(top_k, 8), min_score=min_score)
+    def search(self, query: str, top_k: int = 4, min_score: float = 1.0,
+               audience: str | None = None) -> list[tuple[Chunk, float]]:
+        """audience="end user" hides engineer-only articles (admin commands, role tasks) from end users."""
+        bm25 = self.search_bm25(query, top_k=max(top_k, 8), min_score=min_score, audience=audience)
         if not self.embedder or not self._vectors:
             return bm25[:top_k]
         try:
@@ -169,7 +187,7 @@ class KnowledgeBase:
         except Exception:  # noqa: BLE001 - embedding outage: degrade to BM25
             return bm25[:top_k]
         dense = sorted(((i, _cos(qv, v)) for i, v in enumerate(self._vectors)), key=lambda x: x[1], reverse=True)
-        dense = [(i, s) for i, s in dense[:8] if s >= 0.30]
+        dense = [(i, s) for i, s in dense if s >= 0.30 and self._visible(self.chunks[i], audience)][:8]
         # Reciprocal Rank Fusion (k=60)
         fused: dict[str, float] = {}
         for rank, (c, _) in enumerate(bm25):
@@ -180,12 +198,19 @@ class KnowledgeBase:
         ranked = sorted(fused.items(), key=lambda x: x[1], reverse=True)[:top_k]
         return [(self.by_id[sid], round(score * 1000, 3)) for sid, score in ranked]
 
-    def search_bm25(self, query: str, top_k: int = 4, min_score: float = 1.0) -> list[tuple[Chunk, float]]:
+    @staticmethod
+    def _visible(c: Chunk, audience: str | None) -> bool:
+        return audience is None or audience == "engineer" or c.audience != "engineer"
+
+    def search_bm25(self, query: str, top_k: int = 4, min_score: float = 1.0,
+                    audience: str | None = None) -> list[tuple[Chunk, float]]:
         q = tokenize(query)
         if not q:
             return []
         scores: list[tuple[int, float]] = []
         for i, tf in enumerate(self._tf):
+            if not self._visible(self.chunks[i], audience):
+                continue
             dl = len(self._docs[i])
             s = 0.0
             for t in q:

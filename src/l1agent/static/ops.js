@@ -3,6 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = String(text); return e; };
 let selected = null;
+let authMode = "demo";
 
 async function api(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", "X-Engineer-Id": $("eng").value } });
@@ -20,9 +21,11 @@ document.querySelectorAll(".otab").forEach((b) => b.onclick = () => {
   document.querySelectorAll(".opane").forEach((p) => p.classList.toggle("hidden", p.id !== "p-" + b.dataset.p));
   if (b.dataset.p === "approvals") loadApprovals();
   if (b.dataset.p === "audit") loadAudit();
+  if (b.dataset.p === "tracker") loadTracker();
 });
 
 async function init() {
+  try { authMode = (await (await fetch("/api/session")).json()).auth_mode || "demo"; } catch { /* */ }
   const engs = await (await fetch("/api/ops/engineers")).json();
   engs.forEach((e) => { const o = el("option", null, e.name); o.value = e.engineer_id; $("eng").appendChild(o); });
   try { const h = await (await fetch("/api/health")).json(); $("mode").textContent = h.mode === "online" ? `Online · ${h.model}` : "Offline rules"; $("mode").className = "badge " + h.mode; } catch { /* */ }
@@ -59,7 +62,7 @@ async function showTicket(n, triageResult) {
   const btns = el("span");
   const tri = el("button", "primary sm", "Run Queue Triage Agent"); tri.onclick = async () => { busy(tri, true); try { const r = await post(`/api/ops/tickets/${n}/triage`); await showTicket(n, r); loadQueue(); } catch (e) { toast(d, e.message, true); } busy(tri, false); };
   btns.appendChild(tri);
-  if (t.approval && t.approval.state === "requested") {
+  if (authMode === "demo" && t.approval && t.approval.state === "requested") {
     const ba = el("button", "secondary sm", "Simulate approver: approve"); ba.title = "Demo only: the group owner / manager approves in ServiceNow";
     ba.onclick = async () => { await post(`/api/ops/tickets/${n}/business-approval`, { approved: true }); showTicket(n); loadQueue(); };
     btns.appendChild(ba);
@@ -118,8 +121,21 @@ function actionCard(x, after, selectable) {
     const b = el("div", "btns"); let idv = null;
     if (x.needs_identity_attestation) { const l = el("label"); idv = el("input"); idv.type = "checkbox"; l.appendChild(idv); l.appendChild(document.createTextNode(" I verified the caller's identity (manager call-back)")); b.appendChild(l); }
     const ok = el("button", "primary sm", "Approve & execute"); const no = el("button", "secondary sm", "Reject");
-    ok.onclick = async () => { busy(ok, true); try { await post(`/api/ops/approvals/${x.id}/approve`, { identity_verified: idv ? idv.checked : false, edited_text: ta ? ta.value : null }); after(); } catch (e) { busy(ok, false); toast(c, e.message, true); } };
-    no.onclick = async () => { try { await post(`/api/ops/approvals/${x.id}/reject`, { reason: "rejected by engineer" }); after(); } catch (e) { toast(c, e.message, true); } };
+    // On success the card replaces itself with the server's updated item, so the result is visible wherever
+    // the card is shown; `after` (optional) then refreshes the surrounding view.
+    ok.onclick = async () => {
+      busy(ok, true);
+      try {
+        const res = await post(`/api/ops/approvals/${x.id}/approve`, { identity_verified: idv ? idv.checked : false, edited_text: ta ? ta.value : null });
+        c.replaceWith(actionCard(res, after, selectable)); refreshPendingCount(); if (after) after();
+      } catch (e) { busy(ok, false); toast(c, e.message, true); }
+    };
+    no.onclick = async () => {
+      try {
+        const res = await post(`/api/ops/approvals/${x.id}/reject`, { reason: "rejected by engineer" });
+        c.replaceWith(actionCard(res, after, selectable)); refreshPendingCount(); if (after) after();
+      } catch (e) { toast(c, e.message, true); }
+    };
     b.append(ok, no); c.appendChild(b);
   }
   return c;
@@ -129,7 +145,7 @@ async function loadApprovals() {
   const items = await api("/api/ops/approvals?status=pending");
   const box = $("approvals"); box.replaceChildren();
   if (!items.length) box.appendChild(el("p", "muted", "Nothing waiting for approval."));
-  items.forEach((x) => box.appendChild(actionCard(x, loadApprovals, true)));
+  items.forEach((x) => box.appendChild(actionCard(x, null, true)));
   refreshPendingCount();
 }
 $("bulk").onclick = async () => {
@@ -172,7 +188,7 @@ $("daily").onclick = async () => {
     [r.daily_sheet, r.weekly_sheet].forEach((s) => { const l = el("button", "link", "⬇ " + s.file); l.onclick = () => download(s.file); c.appendChild(l); c.appendChild(el("br")); });
     c.appendChild(el("div", "muted", `Weekly: net backlog ${r.weekly_sheet.net_backlog_change >= 0 ? "+" : ""}${r.weekly_sheet.net_backlog_change}, approvals completed ${r.weekly_sheet.approval_completion_pct}%`));
     box.prepend(c);
-    box.prepend(actionCard(r.approval_item, loadApprovals));
+    box.prepend(actionCard(r.approval_item, null));
   } catch (e) { toast(box, e.message, true); }
   busy(b, false); refreshPendingCount();
 };
@@ -183,7 +199,33 @@ $("eod").onclick = async () => {
     const c = el("div", "card"); c.appendChild(el("h3", null, `${r.count} EOD status notes drafted for ServiceNow`));
     const all = el("button", "primary sm", "Approve all EOD notes"); all.onclick = async () => { const res = await post("/api/ops/approvals/bulk-approve", { ids: r.items.map((i) => i.id) }); toast(box, `${res.filter((x) => x.status === "executed").length} work notes written to ServiceNow.`); refreshPendingCount(); };
     c.appendChild(all); box.appendChild(c);
-    r.items.forEach((x) => box.appendChild(actionCard(x, () => $("eod").click())));
+    r.items.forEach((x) => box.appendChild(actionCard(x, null)));
+  } catch (e) { toast(box, e.message, true); }
+  busy(b, false); refreshPendingCount();
+};
+
+// ---------- major ticket tracker ----------
+function renderTracker(box, tr) {
+  const k = el("div", "kpis"); kpi(k, "incidents", tr.counts.Incident); kpi(k, "changes", tr.counts.Change); kpi(k, "tasks", tr.counts.Task);
+  box.appendChild(k);
+  box.appendChild(el("div", "muted", `As of ${tr.as_of} · SharePoint: ${tr.sharepoint.list} · Teams: ${tr.teams_channel.team} > ${tr.teams_channel.channel}`));
+  const cols = ["Type", "Number", "Priority/Risk", "State", "Title", "Owner", "Why tracked", "Blocker", "Next action", "Next update due"];
+  const t = el("table", "grid"); const hr = el("tr"); cols.forEach((c) => hr.appendChild(el("th", null, c)));
+  const th = el("thead"); th.appendChild(hr); t.appendChild(th); const tb = el("tbody");
+  tr.rows.forEach((r) => { const row = el("tr"); cols.forEach((c) => row.appendChild(el("td", null, r[c] || ""))); tb.appendChild(row); });
+  t.appendChild(tb); box.appendChild(t);
+}
+async function loadTracker() { const box = $("tracker"); box.replaceChildren(); try { renderTracker(box, await api("/api/ops/tracker")); } catch (e) { toast(box, e.message, true); } }
+$("refreshtracker").onclick = loadTracker;
+$("publishtracker").onclick = async () => {
+  const b = $("publishtracker"); busy(b, true); const box = $("tracker"); box.replaceChildren();
+  try {
+    const r = await post("/api/ops/tracker/publish");
+    const c = el("div", "card"); c.appendChild(el("h3", null, "Ready to publish (pending your approval)"));
+    const l = el("button", "link", "⬇ " + r.csv.file); l.onclick = () => download(r.csv.file); c.appendChild(l);
+    box.appendChild(c);
+    r.approval_items.forEach((x) => box.appendChild(actionCard(x, null)));
+    renderTracker(box, r.tracker);
   } catch (e) { toast(box, e.message, true); }
   busy(b, false); refreshPendingCount();
 };
@@ -210,6 +252,7 @@ async function loadAudit() {
   sec("Approval decisions", a.approvals.slice(0, 30), (r) => `${r.at} ${r.event.toUpperCase()} ${r.id} ${r.type} ${r.ticket || ""} by ${r.decided_by || "agent"}: ${r.summary}`);
   sec("Teams messages sent", a.teams_outbox, (r) => `${r.at} to ${r.to} (approved by ${r.approved_by})\n${r.text}`);
   sec("Reports mailed", a.mail_outbox, (r) => `${r.at} to ${r.to}: ${r.subject} [${r.attachments.join(", ")}] approved by ${r.approved_by}`);
+  sec("Teams channel posts", a.channel_posts, (r) => `${r.at} ${r.team} > ${r.channel} (approved by ${r.approved_by})\n${r.text}`);
 }
 $("refreshaudit").onclick = loadAudit;
 

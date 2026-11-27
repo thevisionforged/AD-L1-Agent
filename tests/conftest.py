@@ -110,3 +110,11 @@ def final(response_type="answer", message="ok", steps=None, citations=None, tick
             "confidence": "high"}
     body.update(kw)
     return {"content": json.dumps(body)}
+
+
+def rca(root_cause="Old password on a device", evidence=None, privileged=True, group="IAM-L2 Identity Ops (AD)") -> dict:
+    """Scripted reply of the Identity Diagnostics sub-agent (consumed by the account pre-flight)."""
+    return {"content": json.dumps({
+        "root_cause": root_cause, "evidence": evidence or [{"fact": "locked", "ref": "LOCKED_OUT"}],
+        "recommended_actions": [], "privileged_action_required": privileged, "resolver_group": group,
+        "user_can_self_fix": not privileged, "confidence": "high"})}

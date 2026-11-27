@@ -1,0 +1,27 @@
+{
+  "_note": "SYNTHETIC ServiceNow change requests and catalog tasks for the AD team. Times relative to now (hours; negative = future).",
+  "teams_channel": {"team": "AD Identity Ops", "channel": "Major Ticket Tracker"},
+  "sharepoint_list": {"site": "https://corp.sharepoint.example.com/sites/ADIdentityOps", "list": "AD Major Ticket Tracker"},
+  "changes": [
+    {"number": "CHG0030101", "short_description": "Raise domain functional level prerequisites - DC03 OS upgrade to Windows Server 2022",
+     "risk": "High", "state": "Assess", "cab_approval": "requested", "cab_requested_hours_ago": 30, "planned_start_in_hours": 52,
+     "assigned_to": "e9003", "implementation_plan": true, "backout_plan": true, "test_evidence": false},
+    {"number": "CHG0030102", "short_description": "Fix DC02 <-> DC03 replication: open RPC dynamic ports on branch firewall",
+     "risk": "Moderate", "state": "Scheduled", "cab_approval": "approved", "cab_requested_hours_ago": 20, "planned_start_in_hours": 6,
+     "assigned_to": "e9001", "implementation_plan": true, "backout_plan": true, "test_evidence": true},
+    {"number": "CHG0030103", "short_description": "Remove svc-legacy-backup from Domain Admins, replace with gMSA",
+     "risk": "High", "state": "New", "cab_approval": "not requested", "cab_requested_hours_ago": null, "planned_start_in_hours": 120,
+     "assigned_to": null, "implementation_plan": false, "backout_plan": false, "test_evidence": false},
+    {"number": "CHG0030099", "short_description": "Fine-grained password policy for service accounts",
+     "risk": "Moderate", "state": "Review", "cab_approval": "approved", "cab_requested_hours_ago": 140, "planned_start_in_hours": -20,
+     "assigned_to": "e9002", "implementation_plan": true, "backout_plan": true, "test_evidence": true, "outcome": "backed out"}
+  ],
+  "tasks": [
+    {"number": "SCTASK0040201", "short_description": "Create AD accounts for 5 new joiners (Finance)", "state": "Work in Progress",
+     "assigned_to": "e9001", "due_in_hours": -6, "blocked_by": null, "parent": "RITM0021001"},
+    {"number": "SCTASK0040202", "short_description": "Disable leaver account and remove group memberships", "state": "Pending",
+     "assigned_to": "e9002", "due_in_hours": 10, "blocked_by": "Waiting for HR leaver confirmation", "parent": "RITM0021002"},
+    {"number": "SCTASK0040203", "short_description": "Quarterly privileged group membership review export", "state": "Open",
+     "assigned_to": null, "due_in_hours": 48, "blocked_by": null, "parent": "RITM0021003"}
+  ]
+}

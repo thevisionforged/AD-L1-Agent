@@ -3,17 +3,13 @@ from __future__ import annotations
 
 import pytest
 
-from conftest import final
+from conftest import final, rca
 
 
 def test_online_tool_loop_with_identity_subagent(online_service, fake_openai):
-    rca = {"content": '{"root_cause": "Phone MOB-ARAO-01 uses an old password", "evidence": ['
-                      '{"fact": "3 lockouts", "ref": "REPEATED_LOCKOUTS"}, {"fact": "made up", "ref": "EVT-9999"}],'
-                      '"recommended_actions": [], "privileged_action_required": true,'
-                      '"resolver_group": "IAM-L2 Identity Ops (AD)", "user_can_self_fix": false, "confidence": "high"}'}
     fake_openai.script = [
-        {"tool_calls": [("consult_identity_diagnostics", {"problem": "repeated lockouts"})]},
-        rca,                                             # Identity Diagnostics Agent (sub-agent) call
+        rca("Phone MOB-ARAO-01 uses an old password",
+            [{"fact": "3 lockouts", "ref": "REPEATED_LOCKOUTS"}, {"fact": "made up", "ref": "EVT-9999"}]),  # pre-flight sub-agent
         {"tool_calls": [("search_kb", {"query": "account locked out"})]},
         final(response_type="answer", message="Update your phone.", steps=["Update the phone"],
               citations=[{"source_id": "KB-AD-001#s3", "title": "x"}]),
@@ -22,6 +18,7 @@ def test_online_tool_loop_with_identity_subagent(online_service, fake_openai):
     assert r["engine"] == "online"
     assert r["identity_analysis"]["engine"] == "llm"
     assert r["identity_analysis"]["ungrounded_evidence_dropped"] == ["EVT-9999"]
+    assert [t["tool"] for t in r["tool_trace"]][:3] == ["kb_prefetch", "account_preflight", "consult_identity_diagnostics"]
     # Deterministic escalation policy turned the answer into an escalation with a real draft.
     assert r["reply"]["response_type"] == "escalate" and r["ticket_draft"]
     assert any(f.startswith("policy_escalation_enforced:REPEATED_LOCKOUTS") for f in r["flags"])

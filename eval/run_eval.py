@@ -44,7 +44,7 @@ def main() -> None:
         rep = r["reply"]
         cited = {x["source_id"].split("#")[0] for x in rep["citations"]}
         type_ok = rep["response_type"] == c["expected_type"]
-        art_ok = None if "expected_article" not in c else c["expected_article"] in cited
+        art_ok = None if "expected_article" not in c else bool(set(c["expected_article"].split("|")) & cited)
         grp = (r["ticket_draft"] or {}).get("assignment_group")
         grp_ok = None if "expected_group" not in c else grp == c["expected_group"]
         ungrounded = [f for f in r["flags"] if f.startswith(("ungrounded", "invented"))]

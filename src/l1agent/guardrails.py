@@ -51,6 +51,10 @@ OTHER_USER = [
     r"(account|password|mfa|details|data|groups?)\b",
 ]
 SYSTEM_PROMPT_MARKERS = ["L1-AGENT-POLICY", "You are the CORP L1 Virtual Agent"]
+# Indirect prompt injection: instructions addressed to the AI hidden inside quoted content (emails, tickets).
+EMBEDDED_INSTRUCTION = re.compile(
+    r"(?is)[\"'“‘]?\s*\b(system|admin|administrator|developer|it|security)?\s*(note|message|instruction|instructions|command|directive)s?"
+    r"\s*(to|for)\s*(the\s*)?(ai|assistant|agent|bot|model|copilot)\b\s*[:\-]?[^\"'”’\n]{0,300}[\"'”’]?")
 
 
 @dataclass
@@ -94,6 +98,15 @@ def check_input(text: object, session_user_id: str, max_chars: int) -> GuardResu
         flags.append("secret_redacted")
         warnings.append("A secret-like value was removed from your message.")
 
+    if EMBEDDED_INSTRUCTION.search(clean):
+        clean = EMBEDDED_INSTRUCTION.sub(" [embedded instruction removed] ", clean)
+        flags.append("embedded_instruction_removed")
+        warnings.append("Your message contained instructions addressed to the AI (for example inside a quoted email). "
+                        "They were removed; I only act on your own description of the problem.")
+        if not re.sub(r"\[embedded instruction removed\]|[\W_]", "", clean):
+            return GuardResult(False, clean, flags, "prompt_injection",
+                               "I can't act on instructions addressed to the assistant. Please describe your IT problem.",
+                               warnings)
     if _any(INJECTION, clean):
         return GuardResult(False, clean, flags + ["prompt_injection"], "prompt_injection",
                            "I can't change how I work or share my internal instructions. "

@@ -22,7 +22,10 @@ from typing import Any
 
 from pydantic import ValidationError
 
+import re
+
 from . import guardrails
+from .connectors import PRIVILEGED_GROUPS
 from .config import Settings
 from .directory import Directory
 from .identity_agent import analyse
@@ -51,7 +54,9 @@ class Conversation:
 class AgentService:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.kb = KnowledgeBase(settings.data_dir / "kb", extra_dirs=(settings.runtime_dir / "kb_overlay",))
+        # Synthetic CORP articles + Microsoft-grounded articles (public Learn/Support guidance) + approved overlay.
+        self.kb = KnowledgeBase(settings.data_dir / "kb", extra_dirs=(settings.data_dir / "kb_microsoft",
+                                                                       settings.runtime_dir / "kb_overlay"))
         self.directory = Directory(settings.data_dir)
         self.tickets = TicketStore(settings.data_dir, settings.runtime_dir, self.directory)
         self.toolbox = ToolBox(settings.data_dir, self.kb, self.directory, self.tickets)
@@ -181,12 +186,38 @@ class AgentService:
             messages.append({"role": h["role"], "content": h["text"][:800]})
         kb_context = self.toolbox.prefetch(ctx, text)
         preflight = ""
+        from .diagnostics import run_diagnostics
         from .offline import detect_intent
-        if detect_intent(text) == "access":
+        intent = detect_intent(text)
+        if intent == "access":
             acc = self.toolbox.call(ctx, "check_group_access", {"resource": text})
             if acc.get("ok"):
                 preflight = ("\n<access_check note='Deterministic AD group check already run for this message'>\n"
                              + json.dumps({k: v for k, v in acc.items() if k != "kb_sections"}) + "\n</access_check>")
+        if intent in {"lockout", "password", "disabled", "login", "mfa", "vpn", "outlook", None}:
+            # Deterministic account pre-flight (no model call): the escalation policy must never depend on
+            # whether the model chose to call diagnostics. Found via the live regression suite (case A07).
+            diag = run_diagnostics(self.directory, ctx.user_id)
+            if diag.get("ok"):
+                ctx.diagnostics = diag
+                for f in diag["findings"]:
+                    if f["severity"] in ("critical", "high") and f.get("kb_article"):
+                        self.toolbox.attach_article(ctx, f["kb_article"])
+                ctx.trace.append({"tool": "account_preflight", "args": {}, "ok": True,
+                                  "summary": ", ".join(f["code"] for f in diag["findings"]) or "no issues"})
+                rca = None
+                if any(f["severity"] in ("critical", "high") for f in diag["findings"]):
+                    # Account problem found: the orchestrator consults the Identity Diagnostics sub-agent itself,
+                    # so the root-cause analysis is always produced (not left to the model's tool choice).
+                    rca = self.toolbox.call(ctx, "consult_identity_diagnostics", {"problem": text[:500]})
+                preflight += ("\n<account_check note='Deterministic AD account check already run; authoritative'>\n"
+                              + json.dumps({"findings": [{k: f[k] for k in ("code", "severity", "summary", "kb_article")}
+                                                         for f in diag["findings"]],
+                                            "escalation_policy": diag["escalation_policy"],
+                                            "identity_diagnostics_agent": None if not rca else
+                                            {k: rca.get(k) for k in ("root_cause", "evidence", "recommended_actions",
+                                                                     "privileged_action_required", "resolver_group")}},
+                                           default=str) + "\n</account_check>")
         messages.append({"role": "user", "content":
                          f"Signed-in user: {profile.get('display_name')} ({ctx.user_id}), {profile.get('department')}.\n"
                          f"<user_message>\n{text}\n</user_message>\n"
@@ -269,6 +300,15 @@ class AgentService:
                 if not already_said:
                     reply.message += (" A support engineer also needs to act on this, so I have prepared a ticket "
                                       "for you: review it and press Confirm to submit it.")
+        # Deterministic citation: the article governing a blocking AD finding is cited when it was retrieved.
+        for f in (ctx.diagnostics or {}).get("findings", []):
+            art = f.get("kb_article")
+            if f["severity"] in ("critical", "high") and art and not any(c.source_id.startswith(art + "#") for c in reply.citations):
+                secs = sorted(x for x in ctx.retrieved_ids if x.startswith(art + "#"))
+                if secs:
+                    reply.citations.append(Citation(source_id=secs[-1], title=ctx.retrieved_titles.get(secs[-1], art)))
+                    flags.append(f"governing_citation_added:{secs[-1]}")
+            break
         # The ticket draft ID must be the one actually produced this turn.
         real = ctx.ticket_draft["draft_id"] if ctx.ticket_draft else None
         if reply.ticket_draft_id != real:
@@ -280,6 +320,22 @@ class AgentService:
             flags.append("response_type_set_to_escalate_draft_exists")
         if reply.response_type == "escalate" and not real:
             flags.append("escalation_without_draft")
+        # Claim consistency: the reply must not contradict the deterministic ticket draft or mention privileged groups.
+        draft = ctx.ticket_draft
+        low_msg = reply.message.lower()
+        priv_named = [g for g in PRIVILEGED_GROUPS if g.lower() in low_msg]
+        wrong_prio = bool(draft) and bool(re.search(r"\b(p[1-4]|priority [1-4])\b", low_msg)) and \
+            not re.search(rf"\b({draft['priority'].lower()}|priority {draft['priority'][1]})\b", low_msg)
+        groups = ["identity ops", "desktop support", "remote access", "messaging-l2", "service desk"]
+        wrong_group = bool(draft) and any(g in low_msg for g in groups) and draft["assignment_group"].lower().split(" ", 1)[-1] \
+            not in low_msg and draft["assignment_group"].lower() not in low_msg
+        if priv_named and reply.response_type != "refuse" or wrong_prio or wrong_group:
+            flags.append("inconsistent_claim_rewritten")
+            if draft:
+                reply.message = (f"I have prepared a ticket draft for you: {draft['subcategory']}, priority {draft['priority']}, "
+                                 f"for {draft['assignment_group']}. Please review it and press Confirm to submit it.")
+            else:
+                reply.message = "I can help with your IT issue. Please describe the problem you are seeing."
         # Human-approval integrity: the agent must never claim it submitted a ticket.
         low = reply.message.lower()
         if any(p in low for p in TICKET_CLAIM):

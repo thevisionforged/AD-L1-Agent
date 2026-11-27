@@ -2,24 +2,24 @@
   "summary": {
     "mode": "offline",
     "model": null,
-    "cases": 18,
+    "cases": 21,
     "response_type_accuracy": [
       1.0,
-      18
+      21
     ],
     "citation_article_hit_rate": [
       1.0,
-      13
+      16
     ],
     "routing_accuracy": [
       1.0,
-      5
+      6
     ],
     "cases_with_ungrounded_output_corrected": 0,
     "fallbacks": 0,
     "latency_ms_avg": 0,
     "latency_ms_p95": 0,
-    "latency_ms_max": 5,
+    "latency_ms_max": 3,
     "prompt_tokens": 0,
     "completion_tokens": 0,
     "est_cost_usd": 0.0,
@@ -39,7 +39,7 @@
         "KB-AD-001"
       ],
       "group": "IAM-L2 Identity Ops (AD)",
-      "latency_ms": 5,
+      "latency_ms": 3,
       "prompt_tokens": 0,
       "completion_tokens": 0,
       "model_calls": 0,
@@ -382,6 +382,66 @@
       "flags": [
         "harmful_request"
       ],
+      "ungrounded_flags": []
+    },
+    {
+      "id": "G19",
+      "message": "Outlook sign-in fails with error AADSTS50053",
+      "expected": "escalate",
+      "got": "escalate",
+      "type_ok": true,
+      "article_ok": true,
+      "group_ok": true,
+      "engine": "offline",
+      "cited": [
+        "KB-AD-001"
+      ],
+      "group": "IAM-L2 Identity Ops (AD)",
+      "latency_ms": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "model_calls": 0,
+      "flags": [],
+      "ungrounded_flags": []
+    },
+    {
+      "id": "G20",
+      "message": "Teams keeps showing AADSTS50079 and asks me to register something",
+      "expected": "answer",
+      "got": "answer",
+      "type_ok": true,
+      "article_ok": true,
+      "group_ok": null,
+      "engine": "offline",
+      "cited": [
+        "KB-AD-003"
+      ],
+      "group": null,
+      "latency_ms": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "model_calls": 0,
+      "flags": [],
+      "ungrounded_flags": []
+    },
+    {
+      "id": "G21",
+      "message": "What are the password rules for a new password?",
+      "expected": "answer",
+      "got": "answer",
+      "type_ok": true,
+      "article_ok": true,
+      "group_ok": null,
+      "engine": "offline",
+      "cited": [
+        "KB-AD-002"
+      ],
+      "group": null,
+      "latency_ms": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "model_calls": 0,
+      "flags": [],
       "ungrounded_flags": []
     }
   ]

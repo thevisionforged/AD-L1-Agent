@@ -175,13 +175,16 @@ class ControlledAdmin:
     ROLE_FOR documents the minimum Entra/AD role the production service principal would hold per action
     (assigned just-in-time through PIM in a real deployment)."""
 
+    # Least-privileged roles per Microsoft "Least privileged roles by task" (KB-MS-007), checked 27-Nov-2026.
     ROLE_FOR = {
-        "unlock_account": "Helpdesk Administrator (AD: delegated 'Unlock account' on user OUs)",
-        "reset_mfa_methods": "Authentication Administrator",
-        "add_group_member": "Groups Administrator (scoped to file-share groups via administrative unit)",
-        "extend_account_expiry": "User Administrator",
-        "enable_account": "User Administrator",
-        "revoke_sessions": "User Administrator",
+        "unlock_account": "Helpdesk Administrator / Password Administrator for Entra cloud lockout (via password reset); "
+                          "AD DS: delegated 'Unlock account' (write lockoutTime) on user OUs",
+        "reset_mfa_methods": "Authentication Administrator (non-admin users; Privileged Authentication Administrator if "
+                             "the user holds an admin role)",
+        "add_group_member": "Groups Administrator (or group owner); AD DS: delegated 'write member' on the share-group OU",
+        "extend_account_expiry": "User Administrator (AD DS: delegated write accountExpires on user OUs)",
+        "enable_account": "User Administrator (AD DS: delegated enable/disable on user OUs)",
+        "revoke_sessions": "Helpdesk Administrator (least-privileged role to invalidate refresh tokens of non-admins)",
     }
 
     def __init__(self, directory: Directory, token_check):

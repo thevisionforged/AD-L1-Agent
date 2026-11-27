@@ -1,0 +1,13 @@
+.env
+.env.*
+.git
+.venv
+venv
+runtime
+submission
+__pycache__
+*.pyc
+.pytest_cache
+docs/screenshots
+tests
+eval

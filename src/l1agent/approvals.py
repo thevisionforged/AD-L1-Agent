@@ -22,12 +22,13 @@ from typing import Any
 from .connectors import PRIVILEGED_GROUPS, ControlledAdmin, KBWriter, ServiceNowConnector, TeamsConnector
 
 ACTION_TYPES = {"servicenow_work_note", "servicenow_update", "servicenow_reassign", "servicenow_request_approval",
-                "teams_message", "admin_change", "kb_publish", "email_report"}
+                "teams_message", "admin_change", "kb_publish", "email_report",
+                "sharepoint_update", "teams_channel_post"}
 NEEDS_BUSINESS_APPROVAL = {"add_group_member", "extend_account_expiry", "enable_account"}
 NEEDS_IDENTITY_ATTESTATION = {"reset_mfa_methods", "enable_account"}
 RISK = {"servicenow_work_note": "low", "servicenow_update": "low", "servicenow_request_approval": "low",
         "servicenow_reassign": "low", "teams_message": "medium", "kb_publish": "medium", "admin_change": "high",
-        "email_report": "medium"}
+        "email_report": "medium", "sharepoint_update": "low", "teams_channel_post": "medium"}
 
 
 class ApprovalError(Exception):
@@ -42,8 +43,9 @@ def _ts() -> str:
 
 class ApprovalCenter:
     def __init__(self, snow: ServiceNowConnector, teams: TeamsConnector, kbw: KBWriter, directory, runtime_dir: Path,
-                 mail=None):
+                 mail=None, sharepoint=None, channel=None):
         self.snow, self.teams, self.kbw, self.mail = snow, teams, kbw, mail
+        self.sharepoint, self.channel = sharepoint, channel
         self._tokens: dict[str, tuple[str, str]] = {}          # token -> (action, user_id), single use
         self.admin = ControlledAdmin(directory, self._consume_token)
         self.items: dict[str, dict[str, Any]] = {}
@@ -110,8 +112,8 @@ class ApprovalCenter:
                         raise ApprovalError(409, "two-key rule: the business approval on the ticket is not granted yet")
                 if item["needs_identity_attestation"] and not identity_verified:
                     raise ApprovalError(409, "confirm that you verified the caller's identity (manager call-back) first")
-            if edited_text and item["type"] in ("teams_message", "servicenow_work_note"):
-                p["text"] = edited_text[:2000]
+            if edited_text and item["type"] in ("teams_message", "servicenow_work_note", "teams_channel_post"):
+                p["text"] = edited_text[:6000 if item["type"] == "teams_channel_post" else 2000]
             item["status"] = "approved"
             item["decided_by"], item["decided_at"] = engineer_id, _ts()
         try:
@@ -172,6 +174,10 @@ class ApprovalCenter:
             return {"ok": True, "result": f"approval request/reminder sent to {p['approver_role']}"}
         if typ == "teams_message":
             return self.teams.send_chat(p["user_id"], p["text"], by)
+        if typ == "sharepoint_update":
+            return self.sharepoint.upsert(p["rows"], by)
+        if typ == "teams_channel_post":
+            return self.channel.post(p["text"], by)
         if typ == "email_report":
             return self.mail.send(p["to"], p["subject"], p["body"], p.get("attachments", []), by)
         if typ == "kb_publish":

@@ -48,6 +48,8 @@ class Settings:
     max_retries: int = field(default_factory=lambda: _int("MAX_RETRIES", 3))
     max_input_chars: int = field(default_factory=lambda: _int("MAX_INPUT_CHARS", 2000))
     max_turns_per_conversation: int = field(default_factory=lambda: _int("MAX_TURNS_PER_CONVERSATION", 20))
+    # demo = UI pickers (simulated SSO); easyauth = Azure App Service/Container Apps auth with Entra ID app roles
+    auth_mode: str = field(default_factory=lambda: os.getenv("AUTH_MODE", "demo").lower())
     host: str = field(default_factory=lambda: os.getenv("APP_HOST", "127.0.0.1"))
     port: int = field(default_factory=lambda: _int("APP_PORT", 8000))
     data_dir: Path = PROJECT_ROOT / "sample_data"

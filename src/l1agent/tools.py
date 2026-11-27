@@ -135,7 +135,7 @@ class ToolBox:
 
     def prefetch(self, ctx: ToolContext, query: str, top_k: int = 4) -> list[dict]:
         """Retrieval-first grounding: the orchestrator retrieves KB context before the model reasons."""
-        hits = self.kb.search(query, top_k=top_k)
+        hits = self.kb.search(query, top_k=top_k, audience="end user")
         for c, _ in hits:
             ctx.retrieved_ids.add(c.source_id)
             ctx.retrieved_titles[c.source_id] = f"{c.article_id}: {c.title} - {c.section}"
@@ -150,7 +150,7 @@ class ToolBox:
             raise ValueError("query is required")
         top_k = int(args.get("top_k", 4))
         top_k = max(1, min(top_k, 5))
-        hits = self.kb.search(query, top_k=top_k)
+        hits = self.kb.search(query, top_k=top_k, audience="end user")
         for c, _ in hits:
             ctx.retrieved_ids.add(c.source_id)
             ctx.retrieved_titles[c.source_id] = f"{c.article_id}: {c.title} - {c.section}"

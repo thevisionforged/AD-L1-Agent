@@ -16,12 +16,12 @@ from .tools import ToolBox, ToolContext
 # intent -> (keywords, KB article, category, subcategory)
 INTENTS: dict[str, tuple[list[str], str, str, str]] = {
     "trust":    (["trust relationship", "primary domain failed", "domain trust"], "KB-AD-009", "Hardware/Endpoint", "Domain join"),
-    "disabled": (["account has expired", "account expired", "account is disabled", "account has been disabled",
+    "disabled": (["aadsts50057", "account has expired", "account expired", "account is disabled", "account has been disabled",
                   "account disabled", "contract", "contractor"], "KB-AD-010", "Account & Access", "Account disabled / expired"),
-    "mfa":      (["mfa", "authenticator", "new phone", "lost phone", "lost my phone", "2fa", "verification code",
+    "mfa":      (["aadsts50076", "aadsts50079", "aadsts50072", "aadsts50074", "mfa", "authenticator", "new phone", "lost phone", "lost my phone", "2fa", "verification code",
                   "multi-factor", "approve sign-in", "sign-in request"], "KB-AD-003", "Password & MFA", "MFA"),
-    "lockout":  (["locked out", "lockout", "locked", "lock out", "keeps locking"], "KB-AD-001", "Account & Access", "Account lockout"),
-    "password": (["password expired", "expired password", "change password", "change my password", "reset password",
+    "lockout":  (["aadsts50053", "locked out", "lockout", "locked", "lock out", "keeps locking"], "KB-AD-001", "Account & Access", "Account lockout"),
+    "password": (["aadsts50055", "aadsts50144", "aadsts50126", "password expired", "expired password", "change password", "change my password", "reset password",
                   "reset my password", "forgot", "password"], "KB-AD-002", "Password & MFA", "Password reset / change"),
     "access":   (["access to", "access denied", "access is denied", "permission", "shared folder", "share", "security group",
                   "\\\\", "need access", "folder", "add me to", "gg-", "group membership"], "KB-AD-004",
@@ -107,8 +107,9 @@ def run_offline(toolbox: ToolBox, ctx: ToolContext, text: str, history: list[dic
 
     kws, article, category, subcategory = INTENTS[intent]
     search = toolbox.call(ctx, "search_kb", {"query": f"{text} {' '.join(kws[:3])}", "top_k": 5})
-    if article and not any(r["source_id"].startswith(article) for r in search.get("results", [])):
-        toolbox.call(ctx, "search_kb", {"query": toolbox.kb.article_sections(article)[0].title, "top_k": 5})
+    if article:
+        # The rules chose this article deterministically: attach all its sections as grounded evidence.
+        toolbox.attach_article(ctx, article, max_sections=6)
 
     sections = [c for c in toolbox.kb.article_sections(article) if c.source_id in ctx.retrieved_ids]
     help_secs = [c for c in sections if c.section.lower().startswith(SELF_HELP_HEADINGS)]

@@ -49,10 +49,10 @@ class HealthCheck:
                     add("critical" if r["last_success_minutes_ago"] > 180 else "high", "Replication", f"{dc['name']} <- {r['partner']}",
                         f"{r['consecutive_failures']} consecutive failures, last success {r['last_success_minutes_ago']} min ago"
                         + (f" ({r['last_error']})" if r.get("last_error") else ""),
-                        "Check RPC/firewall connectivity between the DCs, then run repadmin /syncall /AdeP.")
+                        "Check DNS (dcdiag /test:dns), RPC port 135 and the dynamic range (portqry), then repadmin /syncall /AdeP (KB-MS-010).")
             if abs(dc["time_offset_seconds"]) > 300:
                 add("critical", "Time sync", dc["name"], f"Clock offset {dc['time_offset_seconds']} s (Kerberos limit is 300 s)",
-                    "Start W32Time and resync with the PDC emulator (w32tm /resync). Kerberos sign-ins fail beyond 5 minutes.")
+                    "Start W32Time, then w32tm /config /syncfromflags:domhier /update and w32tm /resync /rediscover. Kerberos sign-ins fail beyond 5 minutes (KB-MS-010).")
             elif abs(dc["time_offset_seconds"]) > 60:
                 add("medium", "Time sync", dc["name"], f"Clock offset {dc['time_offset_seconds']} s", "Resync time with the PDC emulator.")
             if not dc["sysvol_shared"]:
@@ -84,7 +84,7 @@ class HealthCheck:
                 if f["code"] == "REPEATED_LOCKOUTS":
                     locked.append(uid)
         if locked:
-            add("medium", "Lockouts", ", ".join(locked), "Repeated lockouts (3+ in 24 h)", "Run lockout-source analysis (4740) and fix devices.")
+            add("medium", "Lockouts", ", ".join(locked), "Repeated lockouts (3+ in 24 h)", "Run lockout-source analysis on 4740 Caller Computer Name and fix the devices (KB-MS-008).")
         if expiring:
             add("info", "Passwords", ", ".join(expiring), f"{len(expiring)} account(s) with expired or soon-expiring passwords",
                 "Send reminder with KB-AD-002 self-service steps.")

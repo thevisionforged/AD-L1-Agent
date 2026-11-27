@@ -34,6 +34,7 @@
   <button class="otab active" data-p="queue">Ticket queue</button>
   <button class="otab" data-p="approvals">Approvals <span id="pendcount" class="count">0</span></button>
   <button class="otab" data-p="insights">Daily insights &amp; reports</button>
+  <button class="otab" data-p="tracker">Major ticket tracker</button>
   <button class="otab" data-p="health">AD health check</button>
   <button class="otab" data-p="audit">Audit trail</button>
 </nav>
@@ -64,6 +65,15 @@
         <button id="daily" class="primary sm">Build daily report + sheets (mail to team DL)</button>
         <button id="eod" class="primary sm">Draft EOD status updates for ServiceNow</button></span></div>
       <div id="insights"><p class="muted">Press "Refresh digest" to see where tickets are stuck.</p></div>
+    </div>
+  </section>
+
+  <section id="p-tracker" class="opane hidden">
+    <div class="panel">
+      <div class="bar"><h2>Major ticket tracker: incidents, changes, tasks</h2>
+        <span><button id="refreshtracker" class="secondary sm">Refresh</button>
+        <button id="publishtracker" class="primary sm">Publish to SharePoint list + Teams channel</button></span></div>
+      <div id="tracker"><p class="muted">Major incidents (P1/P2, VIP, wide impact, SLA risk, stalled approvals), changes (CAB, upcoming windows, missing plans, failed or backed out) and overdue, blocked or unassigned tasks.</p></div>
     </div>
   </section>
 

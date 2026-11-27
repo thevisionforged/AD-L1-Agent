@@ -13,6 +13,7 @@ from .approvals import ApprovalCenter
 from .connectors import EntraReader, KBWriter, ServiceNowConnector, TeamsConnector
 from .ops_agents import QueueInsightsAgent, QueueTriageAgent
 from .ops_reports import HealthCheck, MailConnector, SheetBuilder, eod_note, report_body
+from .tracker import ChannelConnector, MajorTracker, SharePointConnector
 
 
 class OpsService:
@@ -24,7 +25,11 @@ class OpsService:
         self.teams = TeamsConnector(s.runtime_dir)
         self.mail = MailConnector(s.runtime_dir)
         self.kbw = KBWriter(s.runtime_dir / "kb_overlay", core.kb)
-        self.approvals = ApprovalCenter(self.snow, self.teams, self.kbw, core.directory, s.runtime_dir, mail=self.mail)
+        self.tracker = MajorTracker(s.data_dir, self.snow, s.runtime_dir / "reports")
+        self.sharepoint = SharePointConnector(s.runtime_dir, self.tracker.sp_cfg["site"], self.tracker.sp_cfg["list"])
+        self.channel = ChannelConnector(s.runtime_dir, self.tracker.channel_cfg["team"], self.tracker.channel_cfg["channel"])
+        self.approvals = ApprovalCenter(self.snow, self.teams, self.kbw, core.directory, s.runtime_dir, mail=self.mail,
+                                        sharepoint=self.sharepoint, channel=self.channel)
         self.triage_agent = QueueTriageAgent(self.snow, self.entra, core.directory, core.kb, self.approvals,
                                              core.toolbox.resources, core.llm)
         self.insights = QueueInsightsAgent(self.snow, core.llm)
@@ -105,3 +110,24 @@ class OpsService:
                                                 summary=f"EOD status note for {t['number']}", payload={"text": note},
                                                 proposed_by="EOD Status Agent"))
         return {"count": len(items), "items": items}
+
+    # ---------------------------------------------------------------- major ticket tracker
+    def major_tracker(self) -> dict[str, Any]:
+        vips = {uid for uid, u in self.core.directory.users.items() if u.get("vip")}
+        return self.tracker.build(self.insights.metrics()["stalls"], vips)
+
+    def publish_tracker(self) -> dict[str, Any]:
+        """Builds the tracker, exports CSV, and PROPOSES the SharePoint upsert and Teams channel post for approval."""
+        tr = self.major_tracker()
+        csv_file = self.tracker.export_csv(tr)
+        sp = self.approvals.propose(
+            type="sharepoint_update", ticket=None,
+            summary=f"Update SharePoint list '{tr['sharepoint']['list']}' ({len(tr['rows'])} rows)",
+            payload={"site": tr["sharepoint"]["site"], "list": tr["sharepoint"]["list"], "rows": tr["rows"]},
+            proposed_by="Major Tracker Agent", rationale="Keep the AD major ticket tracker current.")
+        post = self.approvals.propose(
+            type="teams_channel_post", ticket=None,
+            summary=f"Post tracker to Teams: {tr['teams_channel']['team']} > {tr['teams_channel']['channel']}",
+            payload={"text": self.tracker.channel_text(tr)},
+            proposed_by="Major Tracker Agent", rationale="Share major incidents, changes and tasks with the AD team.")
+        return {"tracker": tr, "csv": csv_file, "approval_items": [sp, post]}
