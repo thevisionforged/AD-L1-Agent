@@ -1,6 +1,6 @@
 """FastAPI backend. It is the only component that talks to OpenAI; the browser never sees the key.
 
-Production features: AUTH_MODE (demo | easyauth with Entra ID app roles), structured JSON access logs with
+Production features: AUTH_MODE (demo | easyauth | entra sign-in, with Entra ID app roles), structured JSON access logs with
 request IDs, /healthz and /readyz probes, request-size limit, security headers, per-user rate limit,
 generic error responses (no stack traces), demo-only endpoints disabled outside demo mode.
 Built by Samarth Pandey (hack-grp-22).
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 import uuid
 from collections import defaultdict, deque
@@ -16,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -42,7 +43,11 @@ if not log.handlers:
 settings = get_settings()
 service = AgentService(settings)
 ops = OpsService(service)
-auth = Auth(settings.auth_mode, service.directory, ops.snow.engineers)
+oidc = None
+if settings.auth_mode == "entra":
+    from .entra import EntraOIDC
+    oidc = EntraOIDC()          # fails fast with a clear message if ENTRA_* / SESSION_SECRET are missing
+auth = Auth(settings.auth_mode, service.directory, ops.snow.engineers, oidc)
 app = FastAPI(title="AD Identity L1 Virtual Agent", version=__version__,
               description="UC-05 L1 Virtual Agent for Active Directory. Built by Samarth Pandey (hack-grp-22).",
               docs_url="/docs" if auth.demo else None, redoc_url=None, openapi_url="/openapi.json" if auth.demo else None)
@@ -143,17 +148,70 @@ def session(request: Request) -> dict[str, Any]:
     return auth.session(request)
 
 
+# ------------------------------------------------------------------ Entra ID sign-in (AUTH_MODE=entra)
+def _page(request: Request, name: str):
+    """HTML pages: in entra mode, send people who are not signed in to Microsoft sign-in first."""
+    if auth.mode == "entra" and not auth.principal(request):
+        return RedirectResponse(f"/auth/login?return_to={request.url.path}", status_code=302)
+    return FileResponse(STATIC / name)
+
+
+@app.get("/auth/login")
+def auth_login(return_to: str = "/"):
+    if auth.mode != "entra":
+        raise HTTPException(status_code=404, detail="sign-in is only used with AUTH_MODE=entra")
+    from .entra import FLOW_COOKIE
+    url, flow = oidc.begin(return_to)
+    r = RedirectResponse(url, status_code=302)
+    r.set_cookie(FLOW_COOKIE, flow, max_age=600, httponly=True, secure=oidc.secure_cookies, samesite="lax", path="/auth")
+    return r
+
+
+@app.get("/auth/callback")
+def auth_callback(request: Request, code: str = "", state: str = "", error: str = "", error_description: str = ""):
+    if auth.mode != "entra":
+        raise HTTPException(status_code=404)
+    from .entra import FLOW_COOKIE, SESSION_COOKIE, SESSION_HOURS
+    if error:   # e.g. user not assigned to the enterprise application (AADSTS50105)
+        code_hint = error_description.split(":")[0][:20] if error_description else error[:40]
+        return JSONResponse({"detail": f"Microsoft sign-in did not complete ({code_hint}). If it says the user is not "
+                             "assigned, ask IT to assign you to the AD L1 Agent enterprise application."}, status_code=403)
+    try:
+        cookie, return_to = oidc.complete(code, state, request.cookies.get(FLOW_COOKIE))
+    except PermissionError as e:
+        return JSONResponse({"detail": str(e)}, status_code=401)
+    r = RedirectResponse(return_to, status_code=302)
+    r.delete_cookie(FLOW_COOKIE, path="/auth")
+    r.set_cookie(SESSION_COOKIE, cookie, max_age=SESSION_HOURS * 3600, httponly=True, secure=oidc.secure_cookies,
+                 samesite="lax", path="/")
+    return r
+
+
+@app.get("/auth/logout")
+def auth_logout(request: Request):
+    if auth.mode != "entra":
+        return RedirectResponse("/", status_code=302)
+    from .entra import SESSION_COOKIE
+    home = oidc.redirect_uri.rsplit("/auth/", 1)[0] + "/"
+    r = RedirectResponse(oidc.logout_url(home), status_code=302)
+    r.delete_cookie(SESSION_COOKIE, path="/")
+    return r
+
+
 # ------------------------------------------------------------------ end-user portal
 @app.get("/")
-def index() -> FileResponse:
-    return FileResponse(STATIC / "index.html")
+def index(request: Request):
+    return _page(request, "index.html")
 
 
 @app.get("/api/users")
 def users(request: Request) -> list[dict[str, str]]:
     if auth.demo:
         return service.directory.list_users()
-    uid = auth.end_user(request, None)
+    uid = auth.end_user(request, None, allow_org=True)
+    if uid in auth.org_users:
+        o = auth.org_users[uid]
+        return [{"user_id": uid, "display_name": o["name"], "department": o["upn"]}]
     return [u for u in service.directory.list_users() if u["user_id"] == uid]
 
 
@@ -216,8 +274,8 @@ def _eng(request: Request, x_engineer_id: str | None, approver: bool = False) ->
 
 
 @app.get("/ops")
-def ops_page() -> FileResponse:
-    return FileResponse(STATIC / "ops.html")
+def ops_page(request: Request):
+    return _page(request, "ops.html")
 
 
 @app.get("/api/ops/engineers")
@@ -395,20 +453,32 @@ def _v2_ready() -> V2Service:
 
 
 @app.get("/v2")
-def v2_page() -> FileResponse:
-    return FileResponse(STATIC / "v2.html")
+def v2_page(request: Request):
+    return _page(request, "v2.html")
+
+
+def _v2_identity(request: Request, claimed: str | None) -> tuple[str, str | None]:
+    """(user_id, upn). Org users (signed in, not in the synthetic directory) are registered for tickets."""
+    uid = auth.end_user(request, claimed, allow_org=True)
+    if auth.demo:
+        return uid, (os.getenv("GRAPH_DEMO_UPN") or None)
+    p = auth.principal(request)
+    if uid in auth.org_users:
+        service.tickets.register_org_user(uid, auth.org_users[uid]["name"], auth.org_users[uid]["upn"])
+    return uid, (p.upn if p else None)
 
 
 @app.get("/api/v2/info")
 def v2_info() -> dict[str, Any]:
     return {"available": bool(v2 and v2.available), "error": v2_error, "connector_mode": v2.mode if v2 else None,
+            "connectors": v2.connectors() if v2 else None, "auth_mode": auth.mode,
             "model": settings.model, "trace_workflow": "AD L1 Agent v2 (hack-grp-22)", "sdk": "openai-agents"}
 
 
 @app.post("/api/v2/chat")
 async def v2_chat(body: V2ChatIn, request: Request) -> dict[str, Any]:
+    uid, upn = _v2_identity(request, body.user_id)     # authenticate before anything else
     svc = _v2_ready()
-    uid = auth.end_user(request, body.user_id)
     now = time.time()
     q = _hits[uid]
     while q and now - q[0] > 60:
@@ -416,21 +486,13 @@ async def v2_chat(body: V2ChatIn, request: Request) -> dict[str, Any]:
     if len(q) >= RATE_PER_MIN:
         raise HTTPException(status_code=429, detail="Too many messages. Please wait a minute and try again.")
     q.append(now)
-    upn = None
-    if not auth.demo:
-        from .auth import parse_easyauth
-        p = parse_easyauth(request.headers.get("x-ms-client-principal"))
-        upn = p.upn if p else None
-    else:
-        import os
-        upn = os.getenv("GRAPH_DEMO_UPN") or None
     return await svc.chat(uid, body.message, body.conversation_id, upn)
 
 
 @app.post("/api/v2/approvals/{approval_id}")
 async def v2_decide(approval_id: str, body: V2DecisionIn, request: Request) -> dict[str, Any]:
+    uid, _ = _v2_identity(request, body.user_id)
     svc = _v2_ready()
-    uid = auth.end_user(request, body.user_id)
     try:
         return await svc.decide(approval_id, uid, body.approve)
     except KeyError:

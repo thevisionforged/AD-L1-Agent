@@ -1,5 +1,7 @@
 # Microsoft Entra ID: App Registration, Roles, Permissions and Authorisation Guide
 
+> **Running outside Azure App Service** (VM, laptop, container), or connecting ServiceNow and Teams: use [ORG_ROLLOUT_GUIDE.md](ORG_ROLLOUT_GUIDE.md) (`AUTH_MODE=entra`, built-in Entra sign-in).
+
 | | |
 |---|---|
 | Solution | AD Identity L1 Virtual Agent + AD Ops agents |

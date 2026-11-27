@@ -12,12 +12,18 @@ AUTH_MODE=easyauth (production)
       * End users: the UPN claim is mapped to the directory user.
       * Engineers: must hold the Entra app role AD.Engineer (read the Ops Console, triage) and
         AD.Approver (approve/reject actions), AND be registered in the engineer roster.
+AUTH_MODE=entra (organisation roll-out, any host)
+    The app itself signs users in with Microsoft Entra ID (OIDC + PKCE, see entra.py) using your app
+    registration; identity comes from a signed session cookie. Same app roles as easyauth. Signed-in people
+    who are not in the synthetic directory are "organisation users": they use the v2 agent, which reads
+    their real account from Microsoft Graph.
 Built by Samarth Pandey (hack-grp-22).
 """
 from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import json
 from dataclasses import dataclass, field
 
@@ -61,10 +67,14 @@ def parse_easyauth(header_value: str | None) -> Principal | None:
 
 
 class Auth:
-    def __init__(self, mode: str, directory, engineers: dict):
-        if mode not in ("demo", "easyauth"):
-            raise ValueError("AUTH_MODE must be 'demo' or 'easyauth'")
+    def __init__(self, mode: str, directory, engineers: dict, oidc=None):
+        if mode not in ("demo", "easyauth", "entra"):
+            raise ValueError("AUTH_MODE must be 'demo', 'easyauth' or 'entra'")
+        if mode == "entra" and oidc is None:
+            raise ValueError("AUTH_MODE=entra needs the Entra OIDC configuration")
         self.mode = mode
+        self.oidc = oidc
+        self.org_users: dict[str, dict] = {}   # org user id -> {upn, name}
         self.directory = directory
         self.engineers = engineers
         fqdn = directory.policy.get("fqdn", "corp.example.com")
@@ -75,21 +85,38 @@ class Auth:
     def demo(self) -> bool:
         return self.mode == "demo"
 
+    def principal(self, request: Request) -> Principal | None:
+        if self.mode == "easyauth":
+            return parse_easyauth(request.headers.get("x-ms-client-principal"))
+        if self.mode == "entra":
+            from .entra import SESSION_COOKIE
+            d = self.oidc.signer.loads(request.cookies.get(SESSION_COOKIE))
+            return Principal(upn=d["upn"], name=d.get("name", ""), roles=set(d.get("roles", []))) if d else None
+        return None
+
     def _principal(self, request: Request) -> Principal:
-        p = parse_easyauth(request.headers.get("x-ms-client-principal"))
+        p = self.principal(request)
         if not p:
             raise HTTPException(status_code=401, detail="authentication required")
         return p
 
-    def end_user(self, request: Request, claimed_user_id: str | None) -> str:
+    @staticmethod
+    def org_user_id(upn: str) -> str:
+        return "org-" + hashlib.sha256(upn.lower().encode()).hexdigest()[:12]
+
+    def end_user(self, request: Request, claimed_user_id: str | None, allow_org: bool = False) -> str:
+        """allow_org: signed-in tenant users who are not in the synthetic directory get an org user id (v2 only)."""
         if self.demo:
             if not claimed_user_id or not self.directory.get(claimed_user_id):
                 raise HTTPException(status_code=403, detail="unknown or unauthorised user")
             return claimed_user_id
         p = self._principal(request)
         uid = self.upn_to_user.get(p.upn)
+        if not uid and allow_org:
+            uid = self.org_user_id(p.upn)
+            self.org_users[uid] = {"upn": p.upn, "name": p.name or p.upn}
         if not uid:
-            raise HTTPException(status_code=403, detail="signed-in account is not in the CORP directory")
+            raise HTTPException(status_code=403, detail="signed-in account is not in the CORP directory; use the v2 agent at /v2")
         if claimed_user_id and claimed_user_id != uid:
             raise HTTPException(status_code=403, detail="cannot act as another user")
         return uid
@@ -113,7 +140,10 @@ class Auth:
     def session(self, request: Request) -> dict:
         if self.demo:
             return {"auth_mode": "demo"}
-        p = self._principal(request)
-        return {"auth_mode": "easyauth", "upn": p.upn, "name": p.name,
-                "user_id": self.upn_to_user.get(p.upn), "engineer_id": self.upn_to_eng.get(p.upn)
+        p = self.principal(request)
+        if not p:
+            return {"auth_mode": self.mode, "signed_in": False}
+        return {"auth_mode": self.mode, "signed_in": True, "upn": p.upn, "name": p.name,
+                "user_id": self.upn_to_user.get(p.upn) or self.org_user_id(p.upn),
+                "org_user": p.upn not in self.upn_to_user, "roles": sorted(p.roles), "engineer_id": self.upn_to_eng.get(p.upn)
                 if ENGINEER_ROLE in p.roles else None, "approver": APPROVER_ROLE in p.roles}

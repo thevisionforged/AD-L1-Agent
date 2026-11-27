@@ -169,6 +169,7 @@ All users, tickets and systems are **synthetic**. Nothing touches a real Active 
   - **Access:** controlled by assigning an Entra group (for example all employees) to the app.
   - **New joiners:** get access automatically when they are added to that group.
   - **Setup:** see [ENTRA_APP_REGISTRATION_AND_ACCESS_GUIDE.md](ENTRA_APP_REGISTRATION_AND_ACCESS_GUIDE.md), section 3.3.
+  - **Any host (VM, laptop, container):** `AUTH_MODE=entra` signs people in directly with your app registration, and v2 can create real ServiceNow incidents and post to Teams. See [ORG_ROLLOUT_GUIDE.md](ORG_ROLLOUT_GUIDE.md).
 - **Other channels:** a Microsoft Teams bot or a service-desk mailbox in front of the same agent is a planned enhancement and is not built yet.
 
 ## Part 4: If something goes wrong

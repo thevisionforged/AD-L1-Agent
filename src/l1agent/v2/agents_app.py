@@ -9,6 +9,8 @@
   traced (platform.openai.com > Logs > Traces, workflow "AD L1 Agent v2 (hack-grp-22)").
 * Data: CONNECTOR_MODE=mock (default) uses the synthetic directory; CONNECTOR_MODE=live reads the signed-in
   user's real account from Microsoft Graph (graph_connector.py).
+* Connectors (each enabled by its own settings): ServiceNow (SNOW_INSTANCE: real incidents on approval and the
+  caller's open incidents), Microsoft Teams (TEAMS_WEBHOOK_URL: card to the AD team channel on submit).
 Built by Samarth Pandey (hack-grp-22).
 """
 from __future__ import annotations
@@ -20,15 +22,27 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any
 
-from agents import (Agent, GuardrailFunctionOutput, InputGuardrailTripwireTriggered, ModelSettings,
-                    RunConfig, RunContextWrapper, Runner, SQLiteSession, function_tool, input_guardrail,
-                    set_default_openai_key)
+from agents import (
+    Agent,
+    GuardrailFunctionOutput,
+    InputGuardrailTripwireTriggered,
+    ModelSettings,
+    RunConfig,
+    RunContextWrapper,
+    Runner,
+    SQLiteSession,
+    function_tool,
+    input_guardrail,
+    set_default_openai_key,
+)
 from agents.items import ToolCallItem, ToolCallOutputItem
 
 from .. import guardrails
 from ..agent import AgentService
 from ..tools import ToolContext
 from .graph_connector import GraphConnector
+from .snow_connector import ServiceNowClient
+from .teams_connector import TeamsNotifier
 
 WORKFLOW = "AD L1 Agent v2 (hack-grp-22)"
 
@@ -40,12 +54,19 @@ class V2Context:
     tctx: ToolContext
     upn: str | None = None
     graph: GraphConnector | None = None
+    snow: ServiceNowClient | None = None
+    teams: TeamsNotifier | None = None
     guard_message: str | None = None
     calls: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _j(x: Any, n: int = 6000) -> str:
     return json.dumps(x, default=str)[:n]
+
+
+def _org(c: V2Context) -> bool:
+    """Signed-in organisation user (not in the synthetic directory)."""
+    return c.user_id.startswith("org-")
 
 
 # ------------------------------------------------------------------------------------------- tools (read)
@@ -62,6 +83,8 @@ def check_my_account(w: RunContextWrapper[V2Context]) -> str:
     c = w.context
     if c.graph and c.upn:
         return _j(c.graph.account_status(c.upn))
+    if _org(c):
+        return _j({"ok": False, "error": "live directory not connected (CONNECTOR_MODE=mock); cannot read this account"})
     diag = c.svc.toolbox.call(c.tctx, "run_ad_diagnostics", {})
     events = c.svc.directory.events_for(c.user_id, within=timedelta(hours=24))
     diag["dc_events_24h"] = [{"event_id": e["event_id"], "time": e["time"].strftime("%Y-%m-%d %H:%M UTC"),
@@ -73,20 +96,43 @@ def check_my_account(w: RunContextWrapper[V2Context]) -> str:
 @function_tool
 def get_my_profile(w: RunContextWrapper[V2Context]) -> str:
     """The signed-in user's directory profile (department, devices, groups)."""
+    c = w.context
+    if c.graph and c.upn:
+        r = c.graph.account_status(c.upn)
+        r.pop("recent_signin_failures", None)
+        return _j(r)
+    if _org(c):
+        return _j({"ok": False, "error": "live directory not connected"})
     return _j(w.context.svc.toolbox.call(w.context.tctx, "get_user_context", {}))
 
 
 @function_tool
 def check_group_access(w: RunContextWrapper[V2Context], resource: str) -> str:
     """Which AD security group grants access to a share/app and whether the signed-in user is a member (nested groups resolved)."""
+    c = w.context
+    if c.graph and c.upn:
+        r = c.graph.account_status(c.upn)
+        return _j({"resource": resource, "my_groups": r.get("groups", []), "source": r.get("source"),
+                   "note": "Resource-to-group catalogue is not connected for this organisation: tell the user which of "
+                           "their groups look related, and otherwise offer an access-request ticket for the resource owner."})
+    if _org(c):
+        return _j({"ok": False, "error": "live directory not connected"})
     return _j(w.context.svc.toolbox.call(w.context.tctx, "check_group_access", {"resource": resource}))
 
 
 @function_tool
 def my_tickets(w: RunContextWrapper[V2Context]) -> str:
     """The signed-in user's own tickets (submitted and drafts awaiting confirmation)."""
-    t = w.context.svc.tickets
-    return _j({"submitted": [{k: x[k] for k in ("number", "subcategory", "priority", "assignment_group", "status", "created_at")}
+    c = w.context
+    t = c.svc.tickets
+    live = None
+    if c.snow and c.upn:
+        try:
+            live = c.snow.open_incidents(c.upn)
+        except Exception as e:  # noqa: BLE001 - report, never crash the run
+            live = {"error": f"ServiceNow unavailable: {str(e)[:120]}"}
+    return _j({"servicenow_open_incidents": live,
+               "submitted": [{k: x[k] for k in ("number", "subcategory", "priority", "assignment_group", "status", "created_at")}
                              for x in t.for_user(w.context.user_id)],
                "draft_waiting": t.pending_for(w.context.user_id)})
 
@@ -108,11 +154,29 @@ def draft_ticket(w: RunContextWrapper[V2Context], category: str, subcategory: st
 @function_tool(needs_approval=True)
 def submit_ticket(w: RunContextWrapper[V2Context], draft_id: str) -> str:
     """Submit a ticket draft to the support team. REQUIRES THE USER'S APPROVAL (the run pauses until they approve)."""
+    c = w.context
     try:
-        t = w.context.svc.tickets.confirm(draft_id, w.context.user_id)
+        t = c.svc.tickets.confirm(draft_id, c.user_id)
     except (KeyError, PermissionError) as e:
         return _j({"ok": False, "error": str(e)})
-    return _j({"ok": True, "ticket": {k: t[k] for k in ("number", "subcategory", "priority", "assignment_group", "status")}})
+    out = {"ok": True, "ticket": {k: t[k] for k in ("number", "subcategory", "priority", "assignment_group", "status")}}
+    card = dict(t)
+    if c.snow:     # real incident in the organisation's ServiceNow
+        try:
+            inc = c.snow.create_incident(c.upn, t)
+            t["servicenow"] = inc
+            c.svc.tickets._save()
+            out["servicenow"] = inc
+            card.update(number=inc["number"], url=inc["url"])
+        except Exception as e:  # noqa: BLE001
+            out["servicenow_error"] = f"ServiceNow create failed: {str(e)[:150]}; the local ticket was kept"
+    if c.teams:    # notify the AD team channel
+        try:
+            out["teams"] = c.teams.post_ticket(card, t["requester"]["display_name"])
+        except Exception as e:  # noqa: BLE001
+            out["teams"] = {"ok": False, "error": str(e)[:150]}
+    c.calls.append({"connector_result": out})
+    return _j(out)
 
 
 # ------------------------------------------------------------------------------------------- guardrail
@@ -141,7 +205,8 @@ L1_INSTRUCTIONS = """You are the CORP AD L1 Virtual Agent (v2), a friendly IT se
 - If an administrator is needed: check my_tickets first (never create a duplicate); otherwise draft_ticket, show the
   user its priority and team, and ask whether to submit. Only call submit_ticket when the user says yes; the system
   will also ask them to approve it.
-- For ticket status questions use my_tickets. Only the user's own account and tickets; never ask for passwords;
+- After submit_ticket, if it returns a servicenow number, give the user THAT number (it is the real incident).
+- For ticket status questions use my_tickets (it includes live ServiceNow incidents when connected). Only the user's own account and tickets; never ask for passwords;
   IT topics only. You cannot unlock, reset or change anything yourself."""
 
 
@@ -170,13 +235,21 @@ class V2Service:
         self._graph = None
         if self.mode == "live":
             self._graph = GraphConnector()   # raises GraphConfigError with a clear message if not configured
+        self._snow = ServiceNowClient() if ServiceNowClient.configured() else None
+        self._teams = TeamsNotifier() if TeamsNotifier.configured() else None
+
+    def connectors(self) -> dict[str, Any]:
+        return {"directory": "Microsoft Graph (live)" if self._graph else "synthetic directory",
+                "tickets": f"ServiceNow ({self._snow.base})" if self._snow else "built-in ticket store (synthetic)",
+                "teams": "Teams channel webhook" if self._teams else "not connected"}
 
     @property
     def available(self) -> bool:
         return self.svc.settings.online
 
     def _ctx(self, user_id: str, upn: str | None) -> V2Context:
-        return V2Context(user_id=user_id, svc=self.svc, tctx=ToolContext(user_id=user_id), upn=upn, graph=self._graph)
+        return V2Context(user_id=user_id, svc=self.svc, tctx=ToolContext(user_id=user_id), upn=upn, graph=self._graph,
+                         snow=self._snow, teams=self._teams)
 
     def _pack(self, result, ctx: V2Context, conv: str) -> dict[str, Any]:
         calls = []
@@ -201,8 +274,8 @@ class V2Service:
                         "reply": "I'm ready to submit this ticket. Please approve or reject it."})
         else:
             out.update({"status": "done", "reply": str(result.final_output)})
-        out["tickets"] = [{k: t[k] for k in ("number", "subcategory", "priority", "assignment_group", "status")}
-                          for t in self.svc.tickets.for_user(ctx.user_id)]
+        out["tickets"] = [{**{k: t[k] for k in ("number", "subcategory", "priority", "assignment_group", "status")},
+                       "servicenow": (t.get("servicenow") or {}).get("number")} for t in self.svc.tickets.for_user(ctx.user_id)]
         out["draft"] = self.svc.tickets.pending_for(ctx.user_id)
         return out
 

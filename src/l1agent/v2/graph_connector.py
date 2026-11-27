@@ -36,11 +36,12 @@ class GraphConfigError(RuntimeError):
 class GraphConnector:
     def __init__(self, tenant_id: str | None = None, client_id: str | None = None, client_secret: str | None = None,
                  transport: httpx.BaseTransport | None = None, timeout: float = 15.0):
-        self.tenant = tenant_id or os.getenv("GRAPH_TENANT_ID", "")
-        self.client_id = client_id or os.getenv("GRAPH_CLIENT_ID", "")
-        self._secret = client_secret or os.getenv("GRAPH_CLIENT_SECRET", "")
+        # One app registration can serve both sign-in (ENTRA_*) and Graph reads; GRAPH_* overrides if set.
+        self.tenant = tenant_id or os.getenv("GRAPH_TENANT_ID") or os.getenv("ENTRA_TENANT_ID", "")
+        self.client_id = client_id or os.getenv("GRAPH_CLIENT_ID") or os.getenv("ENTRA_CLIENT_ID", "")
+        self._secret = client_secret or os.getenv("GRAPH_CLIENT_SECRET") or os.getenv("ENTRA_CLIENT_SECRET", "")
         if not (self.tenant and self.client_id and self._secret):
-            raise GraphConfigError("CONNECTOR_MODE=live needs GRAPH_TENANT_ID, GRAPH_CLIENT_ID and GRAPH_CLIENT_SECRET")
+            raise GraphConfigError("CONNECTOR_MODE=live needs ENTRA_TENANT_ID, ENTRA_CLIENT_ID and ENTRA_CLIENT_SECRET (or GRAPH_*)")
         self._http = httpx.Client(timeout=timeout, transport=transport)
         self._token: str | None = None
         self._exp = 0.0

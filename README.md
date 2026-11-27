@@ -101,7 +101,18 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1
 | Observability | Agent trace tab | tool calls in the UI, and **platform.openai.com → Logs → Traces**, workflow `AD L1 Agent v2 (hack-grp-22)` |
 | Directory data | synthetic | synthetic by default; **`CONNECTOR_MODE=live` reads real Microsoft Graph** (user, transitive groups, sign-in failures with AADSTS codes) using `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID` and `GRAPH_CLIENT_SECRET` (app permissions User.Read.All, GroupMember.Read.All, AuditLog.Read.All, all read-only) |
 
-Code: `src/l1agent/v2/` (`agents_app.py`, `graph_connector.py`). Tests: `tests/test_v2.py`.
+Code: `src/l1agent/v2/` (`agents_app.py`, `graph_connector.py`, `snow_connector.py`, `teams_connector.py`) and `src/l1agent/entra.py`. Tests: `tests/test_v2.py`, `tests/test_org_integration.py`.
+
+### Use it in your organisation (Entra ID, Graph, ServiceNow, Teams)
+
+| Connector | Switch on with | What it does |
+|---|---|---|
+| **Entra ID sign-in** | `AUTH_MODE=entra` + `ENTRA_*` + `SESSION_SECRET` | colleagues sign in with their work account; access is controlled by Enterprise application assignment; roles are Entra app roles |
+| **Microsoft Graph** | `CONNECTOR_MODE=live` | read-only diagnosis of the signed-in user's own account, groups and sign-in failures |
+| **ServiceNow** | `SNOW_INSTANCE` + integration user or OAuth | a real incident on approval; live status of the caller's open incidents |
+| **Teams** | `TEAMS_WEBHOOK_URL` | an Adaptive Card in the AD team channel for each new ticket |
+
+Step-by-step setup: **[docs/ORG_ROLLOUT_GUIDE.md](docs/ORG_ROLLOUT_GUIDE.md)**. Check your settings with `python -m l1agent.v2.check_connectors you@company.com`.
 
 ## 8. How to Test
 

@@ -3,6 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = String(text); return e; };
 let conversationId = null;
+let demoMode = true;
 const SAMPLES = [
   ["u1001", "What can you do?"],
   ["u1001", "My account keeps getting locked out every few hours"],
@@ -28,11 +29,20 @@ async function init() {
   m.textContent = info.available ? `Agents SDK · ${info.model}` : "v2 unavailable";
   m.className = "badge " + (info.available ? "online" : "offline");
   $("model").textContent = info.model;
-  $("datasrc").textContent = info.connector_mode === "live" ? "LIVE Microsoft Graph (your tenant)" : "synthetic directory (set CONNECTOR_MODE=live for Microsoft Graph)";
+  const c = info.connectors || {};
+  $("datasrc").textContent = `directory: ${c.directory || "synthetic directory"} · tickets: ${c.tickets || "built-in"} · Teams: ${c.teams || "not connected"}`;
+  const sess = await api("/api/session");
+  demoMode = sess.auth_mode === "demo";
+  if (sess.signed_in) {
+    const who = $("who"); who.replaceChildren(el("span", null, `Signed in: ${sess.name || sess.upn}`));
+    if (sess.auth_mode === "entra") { const out = el("a", "link", "Sign out"); out.href = "/auth/logout"; who.append(" · ", out); }
+    who.classList.remove("hidden");
+  }
   if (!info.available) addBot({ reply: "v2 needs OPENAI_API_KEY in .env: it is a real OpenAI Agents SDK agent. " + (info.error || ""), status: "refused", tool_calls: [] });
   const users = await api("/api/users");
   users.forEach((u) => { const o = el("option", null, `${u.display_name} · ${u.department}`); o.value = u.user_id; $("user").appendChild(o); });
-  SAMPLES.forEach(([uid, t]) => { const b = el("button"); b.type = "button"; b.textContent = t; b.onclick = () => { if (userId() !== uid) { $("user").value = uid; reset(); } $("input").value = t; $("input").focus(); }; $("samples").appendChild(b); });
+  const seen = new Set();
+  SAMPLES.filter(([, t]) => demoMode || !seen.has(t) && seen.add(t)).forEach(([uid, t]) => { const b = el("button"); b.type = "button"; b.textContent = t; b.onclick = () => { if (demoMode && userId() !== uid) { $("user").value = uid; reset(); } $("input").value = t; $("input").focus(); }; $("samples").appendChild(b); });
   $("user").onchange = reset;
 }
 function reset() { conversationId = null; $("log").replaceChildren(); addBot({ reply: "Hi! Ask me anything about your sign-in, password, MFA, access or tickets.", tool_calls: [] }); $("activity").replaceChildren(); $("tickets").replaceChildren(el("p", "muted", "No tickets yet.")); }

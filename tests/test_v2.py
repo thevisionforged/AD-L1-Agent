@@ -4,7 +4,6 @@ Built by Samarth Pandey (hack-grp-22)."""
 from __future__ import annotations
 
 import importlib
-import json
 
 import httpx
 import pytest
@@ -66,7 +65,7 @@ def test_graph_forbidden_is_reported_not_raised():
 def test_v2_api_needs_api_key(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_MODE", "offline")
     monkeypatch.setenv("RUNTIME_DIR", str(tmp_path))
-    import l1agent.api as api
+    from l1agent import api
     importlib.reload(api)
     c = TestClient(api.app)
     assert c.get("/api/v2/info").json()["available"] is False

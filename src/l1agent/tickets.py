@@ -26,6 +26,7 @@ class TicketStore:
     def __init__(self, data_dir: Path, runtime_dir: Path, directory: Directory):
         self.routing = json.loads((data_dir / "routing.json").read_text(encoding="utf-8"))
         self.directory = directory
+        self.org_users: dict[str, dict[str, Any]] = {}   # signed-in tenant users who are not in the synthetic directory
         self.runtime_dir = runtime_dir
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.path = runtime_dir / "tickets.json"
@@ -74,7 +75,7 @@ class TicketStore:
         short_description = short_description.strip()[:120]
         if not short_description:
             raise TicketValidationError("short_description is required")
-        user = self.directory.get(requester_id)
+        user = self.directory.get(requester_id) or self.org_users.get(requester_id)
         if not user:
             raise TicketValidationError("unknown requester")
         # No draft spam: reuse a draft for the same issue that is still waiting for this user's confirmation.
@@ -109,6 +110,10 @@ class TicketStore:
         with self._lock:
             self.drafts[draft_id] = payload
         return payload
+
+    def register_org_user(self, user_id: str, display_name: str, upn: str) -> None:
+        self.org_users[user_id] = {"user_id": user_id, "display_name": display_name, "upn": upn,
+                                   "department": "", "vip": False, "devices": []}
 
     def confirm(self, draft_id: str, user_id: str) -> dict[str, Any]:
         with self._lock:
