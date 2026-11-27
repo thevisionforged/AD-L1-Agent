@@ -151,7 +151,7 @@ sample_data/                 synthetic KB, directory, DC events, ServiceNow queu
 sample_data/kb_microsoft/    12 KB articles grounded on public Microsoft Learn/Support guidance (with sources)
 tests/                       128 pytest tests (unit, 10 safety categories, conversation, ops, tracker, production auth, fake OpenAI server)
 eval/                        golden set, evaluation harness, live regression suite, recorded results
-docs/                        architecture, PRODUCTION_DEPLOYMENT_GUIDE, ENTRA_APP_REGISTRATION_AND_ACCESS_GUIDE,
+docs/                        architecture, PRODUCTION_DEPLOYMENT_GUIDE, ENTRA_APP_REGISTRATION_AND_ACCESS_GUIDE, CODEX_BUILD_PROMPT,
                              test_results, demo_script, screenshots
 .github/workflows/ci.yml     CI: tests + offline eval + secret scan
 ```
