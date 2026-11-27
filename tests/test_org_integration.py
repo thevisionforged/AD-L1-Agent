@@ -20,7 +20,9 @@ from l1agent.entra import SESSION_COOKIE, EntraConfigError, EntraOIDC, Signer
 from l1agent.v2.snow_connector import ServiceNowClient, SnowConfigError
 from l1agent.v2.teams_connector import TeamsConfigError, TeamsNotifier
 
-TENANT, CLIENT, SECRET = "11111111-2222-3333-4444-555555555555", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "s" * 40
+TENANT = "11111111-2222-3333-4444-555555555555"
+CLIENT = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+SECRET = "s" * 40   # fake client secret
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 

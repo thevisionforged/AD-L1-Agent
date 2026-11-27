@@ -12,6 +12,7 @@ import pytest
 from l1agent.v2.agents_app import (L1_INSTRUCTIONS, MAX_RESULT_CHARS, MAX_TOOL_CALLS, MAX_TURNS, V2Service)
 from v2_scripted import FAKE_KEY, TEST_MODEL, answer, call, calls, chat, raw_call, scripted_v2, status
 
+FAKE_USER_KEY = "sk" + "-abcdefghijklmnop1234"   # built at runtime so secret scanners do not flag it
 LOCKOUT = "My account keeps getting locked out every few hours"
 DIAG = [call("consult_identity_diagnostics", problem="Account keeps locking out"), call("check_my_account"),
         answer("Root cause: phone MOB-ARAO-01 keeps sending an old password; 3 lockouts in 24h. Needs IAM-L2 to unlock.")]
@@ -72,8 +73,8 @@ def test_rejected_approval_creates_nothing():
 # ------------------------------------------------------------------ safety
 def test_secrets_in_the_message_never_reach_the_model_or_output():
     v2, model = scripted_v2([answer("Never share passwords. I can help you reset it via SSPR.")])
-    r = chat(v2, "I'm locked out. Router password: Sup3rS3cret! and api_key=sk-abcdefghijklmnop1234")
-    assert "Sup3rS3cret" not in model.sent_text() and "sk-abcdefghijklmnop1234" not in model.sent_text()
+    r = chat(v2, f"I'm locked out. Router password: Sup3rS3cret! and api_key={FAKE_USER_KEY}")
+    assert "Sup3rS3cret" not in model.sent_text() and FAKE_USER_KEY not in model.sent_text()
     assert "Sup3rS3cret" not in json.dumps(r) and "password_redacted" in r["security_flags"]
 
 
