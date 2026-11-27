@@ -21,3 +21,5 @@ Thumbs.db
 dist/
 build/
 *.zip
+# Final submission artifacts (zip + docx) - kept out of git
+submission/

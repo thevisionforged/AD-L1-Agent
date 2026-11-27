@@ -1,0 +1,31 @@
+# CI: unit + safety tests (offline, no API key needed) and a secret scan.
+# Built by Samarth Pandey (hack-grp-22).
+name: ci
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run tests (offline, fake OpenAI server)
+        env:
+          AGENT_MODE: offline
+        run: python -m pytest -q tests
+      - name: Offline evaluation
+        run: python eval/run_eval.py --mode offline
+      - name: Secret scan (working tree and full history)
+        run: |
+          if git grep -nE 'sk-[A-Za-z0-9_-]{20,}' $(git rev-list --all) -- . ':!*.md'; then
+            echo "Possible OpenAI key found"; exit 1; fi
+          if git log --all --name-only --format= | grep -E '(^|/)\.env$'; then
+            echo ".env file found in history"; exit 1; fi
+          echo "No secrets found"

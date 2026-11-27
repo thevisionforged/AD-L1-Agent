@@ -1,0 +1,24 @@
+# Microsoft Foundry agent template configuration (from the organizers' local-first guide).
+# Local development only: run `azd ai agent run` or `python src/foundry_host.py`. Do NOT run azd provision/deploy.
+# Built by Samarth Pandey (hack-grp-22).
+name: ad-identity-l1-agent
+infra:
+  provider: microsoft.foundry
+services:
+  ad-identity-l1-agent:
+    name: ad-identity-l1-agent
+    host: azure.ai.agent
+    kind: hosted
+    language: python
+    project: ./
+    codeConfiguration:
+      runtime: python_3_13
+      entryPoint: src/foundry_host.py
+      dependencyResolution: remote_build
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
+    protocols:
+      - protocol: responses
+        version: 2.0.0

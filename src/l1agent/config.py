@@ -29,6 +29,9 @@ def _float(name: str, default: float) -> float:
         return default
 
 
+PLACEHOLDER_KEYS = {"your_key_here", "your_api_key_here", "your_openai_api_key", "changeme", "placeholder"}
+
+
 @dataclass(frozen=True)
 class Settings:
     openai_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", "").strip(), repr=False)
@@ -54,7 +57,8 @@ class Settings:
     def online(self) -> bool:
         if self.agent_mode == "offline":
             return False
-        return bool(self.openai_api_key)
+        key = self.openai_api_key.lower()
+        return bool(key) and key not in PLACEHOLDER_KEYS and not key.startswith("your_")
 
 
 def get_settings() -> Settings:
