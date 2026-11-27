@@ -98,15 +98,33 @@ def _cos(a: list[float], b: list[float]) -> float:
 
 
 class KnowledgeBase:
-    def __init__(self, kb_dir: Path, k1: float = 1.4, b: float = 0.75):
+    def __init__(self, kb_dir: Path, k1: float = 1.4, b: float = 0.75, extra_dirs: tuple[Path, ...] = ()):
         self.embedder: Embedder | None = None
         self._vectors: list[list[float]] | None = None
+        self._embed_args: tuple | None = None
         self.retrieval_mode = "bm25"
-        self.chunks = load_chunks(kb_dir)
-        if not self.chunks:
-            raise RuntimeError(f"No KB articles found in {kb_dir}")
-        self.by_id = {c.source_id: c for c in self.chunks}
+        self.kb_dir, self.extra_dirs = kb_dir, extra_dirs
         self.k1, self.b = k1, b
+        self._build()
+
+    def reload(self) -> None:
+        """Re-index after an approved KB publish (overlay articles override base ones with the same ID)."""
+        self._build()
+        if self._embed_args:
+            self.enable_embeddings(*self._embed_args)
+
+    def _build(self) -> None:
+        chunks = {c.source_id: c for c in load_chunks(self.kb_dir)}
+        for d in self.extra_dirs:
+            if d.exists():
+                overlay = load_chunks(d)
+                for art in {c.article_id for c in overlay}:
+                    chunks = {k: v for k, v in chunks.items() if v.article_id != art}
+                chunks.update({c.source_id: c for c in overlay})
+        self.chunks = list(chunks.values())
+        if not self.chunks:
+            raise RuntimeError(f"No KB articles found in {self.kb_dir}")
+        self.by_id = {c.source_id: c for c in self.chunks}
         self._docs = [tokenize(f"{c.title} {c.section} {c.subcategory} {c.text}") for c in self.chunks]
         self._title_toks = [set(tokenize(f"{c.title} {c.subcategory}")) for c in self.chunks]
         self._tf = [Counter(d) for d in self._docs]
@@ -135,6 +153,7 @@ class KnowledgeBase:
                 cache_path.write_text(json.dumps(cache), encoding="utf-8")
             self._vectors = [cache[k] for k in keys]
             self.embedder = embedder
+            self._embed_args = (embedder, cache_path, model)
             self.retrieval_mode = "hybrid"
             return True
         except Exception:  # noqa: BLE001 - any failure leaves deterministic BM25 in place

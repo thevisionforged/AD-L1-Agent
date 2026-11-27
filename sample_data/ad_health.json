@@ -1,0 +1,23 @@
+{
+  "_note": "SYNTHETIC domain controller health snapshot (what repadmin /replsummary, dcdiag, w32tm and service checks would return).",
+  "team_dl": "ad-identity-ops-team@corp.example.com",
+  "domain_controllers": [
+    {"name": "DC01", "site": "HQ", "fsmo_roles": ["PDCEmulator", "RIDMaster", "InfrastructureMaster"], "os": "Windows Server 2022",
+     "services": {"NTDS": "Running", "DNS": "Running", "Netlogon": "Running", "KDC": "Running", "DFSR": "Running", "W32Time": "Running"},
+     "replication": [{"partner": "DC02", "last_success_minutes_ago": 12, "consecutive_failures": 0},
+                     {"partner": "DC03", "last_success_minutes_ago": 15, "consecutive_failures": 0}],
+     "time_offset_seconds": 0.4, "sysvol_shared": true, "free_disk_pct": 41, "dcdiag_failed_tests": []},
+    {"name": "DC02", "site": "HQ", "fsmo_roles": ["SchemaMaster", "DomainNamingMaster"], "os": "Windows Server 2022",
+     "services": {"NTDS": "Running", "DNS": "Running", "Netlogon": "Running", "KDC": "Running", "DFSR": "Running", "W32Time": "Running"},
+     "replication": [{"partner": "DC01", "last_success_minutes_ago": 12, "consecutive_failures": 0},
+                     {"partner": "DC03", "last_success_minutes_ago": 395, "consecutive_failures": 9, "last_error": "1722 The RPC server is unavailable"}],
+     "time_offset_seconds": 1.1, "sysvol_shared": true, "free_disk_pct": 12, "dcdiag_failed_tests": ["Replications"]},
+    {"name": "DC03", "site": "Branch-Pune", "fsmo_roles": [], "os": "Windows Server 2019",
+     "services": {"NTDS": "Running", "DNS": "Running", "Netlogon": "Running", "KDC": "Running", "DFSR": "Running", "W32Time": "Stopped"},
+     "replication": [{"partner": "DC01", "last_success_minutes_ago": 15, "consecutive_failures": 0},
+                     {"partner": "DC02", "last_success_minutes_ago": 400, "consecutive_failures": 9, "last_error": "1722 The RPC server is unavailable"}],
+     "time_offset_seconds": 312.0, "sysvol_shared": true, "free_disk_pct": 55, "dcdiag_failed_tests": ["Replications", "SystemLog"]}
+  ],
+  "privileged_group_members": {"Domain Admins": ["adm.e9003", "svc-legacy-backup"], "Enterprise Admins": ["adm.e9003"]},
+  "service_accounts": [{"name": "svc-legacy-backup", "password_never_expires": true, "pwd_last_set_days_ago": 1400, "privileged": true}]
+}

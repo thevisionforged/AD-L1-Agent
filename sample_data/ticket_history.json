@@ -1,0 +1,12 @@
+{
+  "_note": "SYNTHETIC daily flow for the AD assignment group over the last 7 days (day 0 = today).",
+  "days": [
+    {"days_ago": 6, "opened": 9,  "resolved": 11, "reassigned_in": 2, "approvals_requested": 3, "approvals_completed": 3, "sla_breaches": 0},
+    {"days_ago": 5, "opened": 12, "resolved": 10, "reassigned_in": 3, "approvals_requested": 4, "approvals_completed": 2, "sla_breaches": 1},
+    {"days_ago": 4, "opened": 8,  "resolved": 9,  "reassigned_in": 1, "approvals_requested": 2, "approvals_completed": 2, "sla_breaches": 0},
+    {"days_ago": 3, "opened": 14, "resolved": 9,  "reassigned_in": 4, "approvals_requested": 5, "approvals_completed": 2, "sla_breaches": 2},
+    {"days_ago": 2, "opened": 11, "resolved": 10, "reassigned_in": 2, "approvals_requested": 3, "approvals_completed": 1, "sla_breaches": 1},
+    {"days_ago": 1, "opened": 10, "resolved": 8,  "reassigned_in": 3, "approvals_requested": 4, "approvals_completed": 2, "sla_breaches": 1},
+    {"days_ago": 0, "opened": 7,  "resolved": 4,  "reassigned_in": 1, "approvals_requested": 2, "approvals_completed": 0, "sla_breaches": 1}
+  ]
+}

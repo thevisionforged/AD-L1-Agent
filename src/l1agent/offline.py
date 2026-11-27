@@ -24,7 +24,8 @@ INTENTS: dict[str, tuple[list[str], str, str, str]] = {
     "password": (["password expired", "expired password", "change password", "change my password", "reset password",
                   "reset my password", "forgot", "password"], "KB-AD-002", "Password & MFA", "Password reset / change"),
     "access":   (["access to", "access denied", "access is denied", "permission", "shared folder", "share", "security group",
-                  "\\\\", "need access", "folder"], "KB-AD-004", "Account & Access", "Access request"),
+                  "\\\\", "need access", "folder", "add me to", "gg-", "group membership"], "KB-AD-004",
+                 "Account & Access", "Access request"),
     "vpn":      (["vpn", "remote access"], "KB-AD-005", "Network & VPN", "VPN"),
     "outlook":  (["outlook", "outlook keeps asking", "mailbox", "email keeps", "mail profile"], "KB-AD-006", "Email & Collaboration", "Outlook"),
     "printer":  (["printer", "print "], "KB-AD-007", "Printing", "Printer setup"),
@@ -36,8 +37,8 @@ FINDING_INTENT = {"ACCOUNT_DISABLED": "disabled", "ACCOUNT_EXPIRED": "disabled",
                   "REPEATED_LOCKOUTS": "lockout", "PASSWORD_EXPIRED": "password"}
 IDENTITY_INTENTS = {"lockout", "password", "disabled", "login", "vpn", "outlook", "mfa", None}
 URGENT = re.compile(r"\b(urgent|asap|immediately|right now|deadline|board meeting|client call|critical|cannot work|can't work)\b", re.I)
-WIDE = re.compile(r"\b(whole team|entire team|everyone|all users|several (users|colleagues|people)|whole office|"
-                  r"many users|nobody can|no one can|whole floor|site)\b", re.I)
+WIDE = re.compile(r"\b((whole|entire) (\w+ )?(team|office|floor|department)|everyone|all users|"
+                  r"several (\w+ )?(users|colleagues|people)|many users|nobody can|no one can|\d{1,4} users)\b", re.I)
 TRIED = re.compile(r"\b(already tried|tried (that|this|everything|the steps)|did ?n[o']t work|does ?n[o']t work|still (not|failing|locked))\b", re.I)
 LOST = re.compile(r"\b(lost|stolen|broke|broken|no longer have|don'?t have (my|the) (old )?phone|factory reset)\b", re.I)
 SELF_HELP_HEADINGS = ("self-help", "what to do", "request", "set up", "add", "change", "reset", "recreate",

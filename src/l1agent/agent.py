@@ -51,7 +51,7 @@ class Conversation:
 class AgentService:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.kb = KnowledgeBase(settings.data_dir / "kb")
+        self.kb = KnowledgeBase(settings.data_dir / "kb", extra_dirs=(settings.runtime_dir / "kb_overlay",))
         self.directory = Directory(settings.data_dir)
         self.tickets = TicketStore(settings.data_dir, settings.runtime_dir, self.directory)
         self.toolbox = ToolBox(settings.data_dir, self.kb, self.directory, self.tickets)

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AD Ops Console</title>
+  <meta name="author" content="Samarth Pandey (hack-grp-22)">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/ops.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">AD</div>
+    <div>
+      <h1>AD Ops Console</h1>
+      <p class="sub">Assignment group: <b id="group">IAM-L2 Identity Ops (AD)</b> · agents propose, engineers approve</p>
+    </div>
+  </div>
+  <div class="status">
+    <a class="link" href="/">End-user L1 agent ↗</a>
+    <label class="muted">Engineer <select id="eng" aria-label="Signed-in engineer"></select></label>
+    <span id="mode" class="badge">…</span>
+  </div>
+</header>
+
+<div class="disclosure" role="note">
+  <strong>Human-in-the-loop.</strong> The agents only read (Entra Global Reader, ServiceNow, KB) and <em>propose</em> actions.
+  Nothing changes in AD/Entra, ServiceNow, Teams, the KB or email until an AD engineer approves it.
+  Admin changes also need the business approval on the ticket (two-key rule) and are never bulk-approved. All data is synthetic.
+</div>
+
+<nav class="opstabs" role="tablist">
+  <button class="otab active" data-p="queue">Ticket queue</button>
+  <button class="otab" data-p="approvals">Approvals <span id="pendcount" class="count">0</span></button>
+  <button class="otab" data-p="insights">Daily insights &amp; reports</button>
+  <button class="otab" data-p="health">AD health check</button>
+  <button class="otab" data-p="audit">Audit trail</button>
+</nav>
+
+<main class="opsmain">
+  <section id="p-queue" class="opane">
+    <div class="split">
+      <div class="panel">
+        <div class="bar"><h2>Active queue</h2><button id="triageall" class="primary sm">Triage all new tickets</button></div>
+        <table class="grid" id="queue"><thead><tr><th>Ticket</th><th>P</th><th>State</th><th>Caller</th><th>Summary</th><th>Age</th><th>SLA</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="panel" id="detail"><p class="muted">Select a ticket, then run the Queue Triage Agent.</p></div>
+    </div>
+  </section>
+
+  <section id="p-approvals" class="opane hidden">
+    <div class="panel">
+      <div class="bar"><h2>Pending approvals</h2>
+        <button id="bulk" class="primary sm">Approve selected (low/medium risk only)</button></div>
+      <div id="approvals"></div>
+    </div>
+  </section>
+
+  <section id="p-insights" class="opane hidden">
+    <div class="panel">
+      <div class="bar"><h2>Queue Insights Agent</h2>
+        <span><button id="digest" class="secondary sm">Refresh digest</button>
+        <button id="daily" class="primary sm">Build daily report + sheets (mail to team DL)</button>
+        <button id="eod" class="primary sm">Draft EOD status updates for ServiceNow</button></span></div>
+      <div id="insights"><p class="muted">Press "Refresh digest" to see where tickets are stuck.</p></div>
+    </div>
+  </section>
+
+  <section id="p-health" class="opane hidden">
+    <div class="panel">
+      <div class="bar"><h2>AD health check</h2><button id="runhealth" class="primary sm">Run health check</button></div>
+      <div id="health"><p class="muted">Checks DC replication, services, time sync, SYSVOL, disk, dcdiag, privileged groups and account hygiene.</p></div>
+    </div>
+  </section>
+
+  <section id="p-audit" class="opane hidden">
+    <div class="panel"><div class="bar"><h2>Audit trail</h2><button id="refreshaudit" class="secondary sm">Refresh</button></div><div id="audit"></div></div>
+  </section>
+</main>
+<footer class="foot">Built by <strong>Samarth Pandey</strong> · <strong>hack-grp-22</strong> · HCLTech DFS TechBee AI Hackathon 2026</footer>
+<script src="/static/ops.js"></script>
+</body>
+</html>
