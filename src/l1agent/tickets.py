@@ -77,6 +77,10 @@ class TicketStore:
         user = self.directory.get(requester_id)
         if not user:
             raise TicketValidationError("unknown requester")
+        # No draft spam: reuse a draft for the same issue that is still waiting for this user's confirmation.
+        existing = self.pending_for(requester_id, subcategory)
+        if existing:
+            return existing
         priority, reason = self.compute_priority(impact, urgency, user["vip"])
         devices = [d["name"] for d in user["devices"]]
         if device not in devices:
@@ -135,3 +139,21 @@ class TicketStore:
 
     def for_user(self, user_id: str) -> list[dict[str, Any]]:
         return [t for t in self.created if t["requester"]["user_id"] == user_id]
+
+    # ---- conversation follow-ups and duplicate prevention ---------------------------
+    def pending_for(self, user_id: str, subcategory: str | None = None) -> dict[str, Any] | None:
+        """Latest draft still waiting for this user's confirmation (optionally for one subcategory)."""
+        with self._lock:
+            ds = [d for d in self.drafts.values() if d["requester"]["user_id"] == user_id
+                  and (subcategory is None or d["subcategory"] == subcategory)]
+        return ds[-1] if ds else None
+
+    def open_ticket(self, user_id: str, subcategory: str | None = None) -> dict[str, Any] | None:
+        """Latest submitted ticket of this user that is still open (optionally for one subcategory)."""
+        ts = [t for t in self.for_user(user_id) if t.get("status") not in ("resolved", "closed", "cancelled")
+              and (subcategory is None or t["subcategory"] == subcategory)]
+        return ts[-1] if ts else None
+
+    def find_for_user(self, user_id: str, number: str) -> dict[str, Any] | None:
+        """A user's own ticket by number. Other users' tickets are never returned (access control)."""
+        return next((t for t in self.for_user(user_id) if t["number"].upper() == number.upper()), None)

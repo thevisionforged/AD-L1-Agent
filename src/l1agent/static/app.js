@@ -107,7 +107,10 @@ $("form").onsubmit = async (ev) => {
   try {
     const res = await api("/api/chat", { method: "POST", body: JSON.stringify({ user_id: userId(), message: text, conversation_id: conversationId }) });
     conversationId = res.conversation_id;
-    addBotMsg(res); renderEvidence(res); renderTrace(res); renderTicketTab(res.ticket_draft);
+    addBotMsg(res); renderEvidence(res); renderTrace(res);
+    // A typed "confirm" submits the pending draft server-side: clear the draft panel and refresh My tickets.
+    if (res.ticket_submitted) renderTicketTab(null); else if (res.ticket_draft || res.engine !== "followup") renderTicketTab(res.ticket_draft);
+    loadTickets();
     const u = res.usage;
     $("meta").textContent = `${res.engine}${res.model ? " · " + res.model : ""} · ${res.latency_ms} ms · ${u.model_calls} model calls · ${u.prompt_tokens + u.completion_tokens} tokens`;
   } catch (e) { addErr("Sorry, something went wrong: " + e.message); }

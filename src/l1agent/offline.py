@@ -269,6 +269,12 @@ def _escalate(toolbox: ToolBox, ctx: ToolContext, text: str, history: list[dict[
         "steps_attempted": tried or ["Self-help guidance provided by the L1 Virtual Agent"],
         "diagnostic_codes": codes,
         "kb_references": [c.source_id for c in (citations or [])]})
+    if draft.get("existing_ticket"):
+        t = draft["existing_ticket"]
+        msg = " ".join(x for x in [root_cause_note, reason, f"You already have ticket {t['number']} open for this with "
+                                   f"{t['assignment_group']} (status {t['status']}), so I haven't raised another one."] if x)
+        return AgentReply(response_type="escalate", message=msg, steps=steps or [], citations=citations or [],
+                          facts_from_directory=facts, escalation_reason=reason, confidence="high")
     draft_id = draft["draft"]["draft_id"] if draft.get("ok") else None
     msg = " ".join(x for x in [root_cause_note, reason,
                                "I have prepared a pre-filled ticket. Please review it and press Confirm to submit it, "

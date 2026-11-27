@@ -31,6 +31,7 @@ from .directory import Directory
 from .identity_agent import analyse
 from .kb import KnowledgeBase
 from .llm import LLM, LLMUnavailable, Usage
+from .followups import handle_followup
 from .offline import run_offline
 from .schemas import REPLY_JSON_SCHEMA, AgentReply, Citation
 from .tickets import TicketStore
@@ -112,6 +113,16 @@ class AgentService:
                                message="This conversation has reached its message limit. Please start a new conversation.")
             engine = "guardrail"
 
+        # Ticket follow-ups ("status of INC…", "I confirm", "already submitted") are answered deterministically and
+        # never start a new escalation or a duplicate draft (user feedback from the live demo).
+        ticket_submitted = None
+        if reply is None:
+            fu = handle_followup(self.tickets, self.directory, user_id, guard.text)
+            if fu:
+                reply, ticket_submitted, engine = fu["reply"], fu["ticket_submitted"], "followup"
+                ctx.conversational = True
+                flags.append("ticket_followup" + (":submitted" if ticket_submitted else ""))
+
         cache_key = hashlib.sha256(f"{user_id}|{guard.text.lower()}|{len(conv.history)}".encode()).hexdigest()
         if reply is None and conv.history:
             last_user = next((h for h in reversed(conv.history) if h["role"] == "user"), None)
@@ -151,7 +162,10 @@ class AgentService:
                 reply = run_offline(self.toolbox, ctx, guard.text, conv.history)
                 engine = "offline"
 
-        reply, vflags = self._validate(reply, ctx, guard.text if engine != "guardrail" else "")
+        if engine == "followup":
+            vflags = []   # deterministic text built from the user's own real ticket data; nothing to correct
+        else:
+            reply, vflags = self._validate(reply, ctx, guard.text if engine != "guardrail" else "")
         flags += vflags
         conv.turns += 1
         conv.tokens += usage.prompt_tokens + usage.completion_tokens
@@ -163,6 +177,8 @@ class AgentService:
             "conversation_id": conv.conversation_id,
             "reply": reply.model_dump(),
             "ticket_draft": ctx.ticket_draft,
+            "ticket_submitted": ticket_submitted,
+            "existing_ticket": ctx.existing_ticket,
             "diagnostics": ctx.diagnostics,
             "identity_analysis": _slim_analysis(ctx.identity_analysis),
             "tool_trace": ctx.trace,
@@ -332,6 +348,14 @@ class AgentService:
         if policy and not ctx.ticket_draft:
             flags.append("policy_escalation_enforced:" + policy["trigger"])
             self._policy_draft(ctx, policy, user_text, reply.steps[:5], [c.source_id for c in reply.citations])
+        if ctx.existing_ticket and not ctx.ticket_draft:
+            t = ctx.existing_ticket
+            flags.append("duplicate_ticket_avoided:" + t["number"])
+            reply.response_type = "escalate"
+            reply.ticket_draft_id = None
+            reply.message = re.sub(r"(?i)[^.!?]*\b(ticket draft|prepared a ticket|press confirm)[^.!?]*[.!?]", "", reply.message).strip()
+            reply.message += (f" You already have ticket {t['number']} open for this with {t['assignment_group']} "
+                              f"(status {t['status']}), so I haven't raised another one.")
         if policy and ctx.ticket_draft:
             reply.response_type = "escalate"
             reply.escalation_reason = reply.escalation_reason or policy["reason"]

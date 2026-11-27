@@ -13,7 +13,7 @@
 
 | Area | State in this release | Evidence |
 |---|---|---|
-| Agent logic, guardrails, escalation policy, approval gate | **Ready** | 128 automated tests; live regression suite (`eval/regression_live.py`) |
+| Agent logic, guardrails, escalation policy, approval gate | **Ready** | 137 automated tests; live regression suite (`eval/regression_live.py`) |
 | Authentication | **Ready**: `AUTH_MODE=easyauth` (Entra ID via App Service / Container Apps auth, app roles `AD.Engineer`, `AD.Approver`) | `tests/test_production.py` |
 | Observability basics | **Ready**: JSON access logs with request IDs, per-turn audit JSONL, `/healthz`, `/readyz` | `api.py` |
 | Kill switch | **Ready**: `ACTIONS_ENABLED=false` freezes all execution | `test_kill_switch_freezes_execution` |

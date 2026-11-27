@@ -78,8 +78,15 @@ async function send(p, text) {
   await p.waitForTimeout(500);
   const myT = await p.innerText('#tickets');
   rec('portal: Confirm creates INC ticket and lists it under My tickets', /INC\d{7}/.test(myT), myT.slice(0, 60));
-  // cancel path
+  // duplicate prevention: Asha already has an open lockout ticket, so no new draft is raised
   r = await send(p, 'It is still locking me out, I already tried the steps');
+  rec('portal: no duplicate ticket for an issue that already has an open ticket', /already have ticket INC\d{7}/.test(r.text), r.text.slice(0, 80));
+  // typed follow-up: status of my ticket
+  r = await send(p, 'What is the status of my ticket?');
+  rec('portal: ticket status follow-up answered from the real ticket', /INC\d{7}/.test(r.text) && r.text.includes('IAM-L2'));
+  // cancel path (user without an open ticket)
+  await p.selectOption('#user', 'u1004'); await p.waitForTimeout(400);
+  r = await send(p, "I can't log in, it says my account has expired");
   await p.click('.tab[data-tab=ticket]');
   const hasDraft = await p.$('#tab-ticket .secondary');
   if (hasDraft) { await hasDraft.click(); await p.waitForTimeout(500); }

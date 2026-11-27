@@ -89,6 +89,7 @@ class ToolContext:
     analyser: Callable[[str, dict, list], dict] | None = None
     access_check: dict[str, Any] | None = None
     conversational: bool = False      # greeting / thanks / "what can you do": no account workflow, no tickets
+    existing_ticket: dict[str, Any] | None = None   # open ticket found instead of drafting a duplicate
     ticket_draft: dict[str, Any] | None = None
     trace: list[dict[str, Any]] = field(default_factory=list)
 
@@ -205,6 +206,13 @@ class ToolBox:
         if ctx.ticket_draft is not None:
             return {"ok": False, "error": "a ticket draft already exists for this turn",
                     "draft_id": ctx.ticket_draft["draft_id"]}
+        # Duplicate prevention: the user already has an open ticket for this kind of issue.
+        open_t = self.tickets.open_ticket(ctx.user_id, str(args.get("subcategory", "")))
+        if open_t:
+            ctx.existing_ticket = open_t
+            return {"ok": True, "existing_ticket": {k: open_t[k] for k in ("number", "status", "priority",
+                                                                            "assignment_group", "created_at")},
+                    "note": "The user already has an open ticket for this issue. Do not draft another; refer to it."}
         steps = args.get("steps_attempted") or []
         codes = args.get("diagnostic_codes") or []
         refs = args.get("kb_references") or []
@@ -265,6 +273,8 @@ def _summarize(name: str, result: dict) -> str:
         return f"[{result.get('engine')}] {codes} | root cause: {result.get('root_cause', '')[:90]}"
     if name == "check_group_access":
         return f"{result['required_group']}: {'member' if result['is_member'] else 'not a member'}"
+    if name == "draft_ticket" and "existing_ticket" in result:
+        return f"duplicate avoided: open ticket {result['existing_ticket']['number']}"
     if name == "draft_ticket":
         d = result["draft"]
         return f"{d['draft_id']} {d['priority']} -> {d['assignment_group']}"

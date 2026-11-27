@@ -106,3 +106,58 @@ def test_real_problem_still_escalates_after_conversation(offline_service):
     r1 = offline_service.handle("u1001", "hi")
     r2 = offline_service.handle("u1001", "My account keeps getting locked out", conversation_id=r1["conversation_id"])
     assert r2["reply"]["response_type"] == "escalate" and r2["ticket_draft"]
+
+
+# ---- ticket follow-ups (user feedback from the live demo) ---------------------------------------------------------
+def test_typed_confirm_submits_pending_draft(offline_service):
+    r1 = offline_service.handle("u1001", "My account keeps getting locked out every few hours")
+    draft = r1["ticket_draft"]["draft_id"]
+    r2 = offline_service.handle("u1001", "I confirm submit", conversation_id=r1["conversation_id"])
+    t = r2["ticket_submitted"]
+    assert t and t["number"].startswith("INC") and draft not in offline_service.tickets.drafts
+    assert r2["ticket_draft"] is None and t["number"] in r2["reply"]["message"]
+
+
+def test_status_question_reports_own_ticket_without_new_draft(offline_service):
+    r1 = offline_service.handle("u1001", "My account keeps getting locked out every few hours")
+    t = offline_service.tickets.confirm(r1["ticket_draft"]["draft_id"], "u1001")
+    r2 = offline_service.handle("u1001", f"What is the status of my ticket no. {t['number']} · P3 · Account lockout",
+                                conversation_id=r1["conversation_id"])
+    assert r2["ticket_draft"] is None and offline_service.tickets.drafts == {}
+    assert t["number"] in r2["reply"]["message"] and "IAM-L2 Identity Ops (AD)" in r2["reply"]["message"]
+
+
+def test_status_of_someone_elses_ticket_not_revealed(offline_service):
+    r1 = offline_service.handle("u1002", "My password expired and I am not registered, please help, I already tried")
+    other = offline_service.handle("u1001", "My account keeps getting locked out")
+    t = offline_service.tickets.confirm(other["ticket_draft"]["draft_id"], "u1001")
+    r = offline_service.handle("u1002", f"status of {t['number']}?")
+    assert "can't find" in r["reply"]["message"] and "IAM-L2" not in r["reply"]["message"]
+
+
+@pytest.mark.parametrize("msg", ["I've already submitted.", "submited", "submitted"])
+def test_already_submitted_acknowledged_no_duplicate(offline_service, msg):
+    r1 = offline_service.handle("u1001", "My account keeps getting locked out every few hours")
+    t = offline_service.tickets.confirm(r1["ticket_draft"]["draft_id"], "u1001")
+    r2 = offline_service.handle("u1001", msg, conversation_id=r1["conversation_id"])
+    assert r2["ticket_draft"] is None and t["number"] in r2["reply"]["message"]
+
+
+def test_no_duplicate_ticket_for_same_issue(offline_service):
+    r1 = offline_service.handle("u1001", "My account keeps getting locked out every few hours")
+    t = offline_service.tickets.confirm(r1["ticket_draft"]["draft_id"], "u1001")
+    r2 = offline_service.handle("u1001", "still locked out, please help")
+    assert r2["ticket_draft"] is None and t["number"] in r2["reply"]["message"]
+    assert offline_service.tickets.drafts == {}
+
+
+def test_repeated_escalation_reuses_pending_draft(offline_service):
+    a = offline_service.handle("u1001", "My account keeps getting locked out every few hours")
+    b = offline_service.handle("u1001", "my account is locked again")
+    assert a["ticket_draft"]["draft_id"] == b["ticket_draft"]["draft_id"] and len(offline_service.tickets.drafts) == 1
+
+
+def test_typed_confirm_message_has_no_contradicting_note(offline_service):
+    r1 = offline_service.handle("u1001", "My account keeps getting locked out every few hours")
+    r2 = offline_service.handle("u1001", "I confirm submit", conversation_id=r1["conversation_id"])
+    assert "only a draft" not in r2["reply"]["message"] and "submitted your ticket" in r2["reply"]["message"]
