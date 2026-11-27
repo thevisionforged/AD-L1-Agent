@@ -76,3 +76,15 @@ def test_probes_headers_and_limits(prod):
 
 def test_malformed_principal_is_rejected(prod):
     assert prod.post("/api/chat", json={"message": "hi"}, headers={"X-MS-CLIENT-PRINCIPAL": "not-base64!!"}).status_code == 401
+
+
+def test_kill_switch_freezes_execution(offline_service):
+    from l1agent.approvals import ApprovalError
+    from l1agent.ops import OpsService
+    ops = OpsService(offline_service)
+    ops.approvals.actions_enabled = False
+    item = next(a for a in ops.triage("INC0010001")["proposed_actions"] if a["type"] == "admin_change")
+    with pytest.raises(ApprovalError) as e:
+        ops.approvals.approve(item["id"], "e9001")
+    assert e.value.code == 503 and ops.approvals.items[item["id"]]["status"] == "pending"
+    assert offline_service.directory.get("u1001")["locked_out"] is True

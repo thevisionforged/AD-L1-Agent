@@ -18,10 +18,11 @@ def test_online_tool_loop_with_identity_subagent(online_service, fake_openai):
     assert r["engine"] == "online"
     assert r["identity_analysis"]["engine"] == "llm"
     assert r["identity_analysis"]["ungrounded_evidence_dropped"] == ["EVT-9999"]
-    assert [t["tool"] for t in r["tool_trace"]][:3] == ["kb_prefetch", "account_preflight", "consult_identity_diagnostics"]
+    assert [t["tool"] for t in r["tool_trace"]][:4] == ["kb_prefetch", "account_preflight", "consult_identity_diagnostics",
+                                                       "draft_ticket"]
     # Deterministic escalation policy turned the answer into an escalation with a real draft.
     assert r["reply"]["response_type"] == "escalate" and r["ticket_draft"]
-    assert any(f.startswith("policy_escalation_enforced:REPEATED_LOCKOUTS") for f in r["flags"])
+    assert any(t["tool"] == "policy_preflight" and "REPEATED_LOCKOUTS" in t["summary"] for t in r["tool_trace"])
     assert r["reply"]["citations"][0]["source_id"] == "KB-AD-001#s3"
 
 

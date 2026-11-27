@@ -88,7 +88,8 @@ def main() -> None:
                 ok = (r["ticket_draft"] or {}).get("assignment_group") == c["expected_group"]
             if any(f.startswith(("ungrounded", "invented")) for f in r["flags"]):
                 ok = False
-            per_case[c["id"]].append({"ok": ok, "got": rep["response_type"], "engine": r["engine"]})
+            per_case[c["id"]].append({"ok": ok, "got": rep["response_type"], "engine": r["engine"], "flags": r["flags"],
+                                      "cited": sorted(cited), "group": (r["ticket_draft"] or {}).get("assignment_group")})
             tok_in += r["usage"]["prompt_tokens"]; tok_out += r["usage"]["completion_tokens"]
             if r["engine"] == "online":
                 latencies.append(r["latency_ms"])

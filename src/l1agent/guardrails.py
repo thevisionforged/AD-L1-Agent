@@ -71,7 +71,20 @@ def _any(patterns: list[str], text: str) -> bool:
     return any(re.search(p, text, re.I) for p in patterns)
 
 
-def check_input(text: object, session_user_id: str, max_chars: int) -> GuardResult:
+def _names_other_person(text: str, other_names: list[str]) -> bool:
+    """True if the text names another directory user (full name, or a possessive first name such as "Meera's")."""
+    low = text.lower()
+    for name in other_names:
+        parts = name.lower().split()
+        if len(parts) >= 2 and " ".join(parts[:2]) in low:
+            return True
+        if parts and re.search(rf"\b{re.escape(parts[0])}['’]s\b", low):
+            return True
+    return False
+
+
+def check_input(text: object, session_user_id: str, max_chars: int,
+                other_names: list[str] | None = None) -> GuardResult:
     if not isinstance(text, str):
         return GuardResult(False, "", ["invalid_type"], "invalid_input", "Please type your question as plain text.")
     stripped = text.strip()
@@ -119,7 +132,7 @@ def check_input(text: object, session_user_id: str, max_chars: int) -> GuardResu
                            warnings)
     own_id = session_user_id.lower()
     mentioned_ids = {m.lower() for m in re.findall(r"\bu\d{4}\b", clean, re.I)}
-    if (mentioned_ids - {own_id}) or (_any(OTHER_USER[:2], clean)):
+    if (mentioned_ids - {own_id}) or (_any(OTHER_USER[:2], clean)) or _names_other_person(clean, other_names or []):
         return GuardResult(False, clean, flags + ["other_user_data"], "access_control",
                            "For security I can only look at or help with your own account. Your colleague should "
                            "contact the service desk themselves, or their manager can raise a request for them.",

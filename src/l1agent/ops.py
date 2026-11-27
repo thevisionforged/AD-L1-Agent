@@ -30,6 +30,7 @@ class OpsService:
         self.channel = ChannelConnector(s.runtime_dir, self.tracker.channel_cfg["team"], self.tracker.channel_cfg["channel"])
         self.approvals = ApprovalCenter(self.snow, self.teams, self.kbw, core.directory, s.runtime_dir, mail=self.mail,
                                         sharepoint=self.sharepoint, channel=self.channel)
+        self.approvals.actions_enabled = s.actions_enabled
         self.triage_agent = QueueTriageAgent(self.snow, self.entra, core.directory, core.kb, self.approvals,
                                              core.toolbox.resources, core.llm)
         self.insights = QueueInsightsAgent(self.snow, core.llm)

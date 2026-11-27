@@ -96,7 +96,8 @@ class AgentService:
         flags: list[str] = []
         engine = self.mode
 
-        guard = guardrails.check_input(message, user_id, self.settings.max_input_chars)
+        others = [u["display_name"].split(" (")[0] for uid, u in self.directory.users.items() if uid != user_id]
+        guard = guardrails.check_input(message, user_id, self.settings.max_input_chars, others)
         flags += guard.flags
         warnings = list(guard.warnings)
         reply: AgentReply | None = None
@@ -210,13 +211,22 @@ class AgentService:
                     # Account problem found: the orchestrator consults the Identity Diagnostics sub-agent itself,
                     # so the root-cause analysis is always produced (not left to the model's tool choice).
                     rca = self.toolbox.call(ctx, "consult_identity_diagnostics", {"problem": text[:500]})
+                pol = turn_policy(ctx, text, "escalate") if diag["escalation_policy"].get("escalation_required") else None
+                if pol and not ctx.ticket_draft:
+                    # Rules decide: the policy-required ticket is drafted up front; the model only explains it.
+                    self._policy_draft(ctx, pol, text, [], sorted(ctx.retrieved_ids)[:5])
+                    ctx.trace.append({"tool": "policy_preflight", "args": {}, "ok": True,
+                                      "summary": f"escalation required ({pol['trigger']}) -> {ctx.ticket_draft['draft_id']}"})
                 preflight += ("\n<account_check note='Deterministic AD account check already run; authoritative'>\n"
                               + json.dumps({"findings": [{k: f[k] for k in ("code", "severity", "summary", "kb_article")}
                                                          for f in diag["findings"]],
                                             "escalation_policy": diag["escalation_policy"],
                                             "identity_diagnostics_agent": None if not rca else
                                             {k: rca.get(k) for k in ("root_cause", "evidence", "recommended_actions",
-                                                                     "privileged_action_required", "resolver_group")}},
+                                                                     "privileged_action_required", "resolver_group")},
+                                            "ticket_draft_already_prepared": None if not ctx.ticket_draft else
+                                            {k: ctx.ticket_draft[k] for k in ("draft_id", "subcategory", "priority",
+                                                                              "assignment_group")}},
                                            default=str) + "\n</account_check>")
         messages.append({"role": "user", "content":
                          f"Signed-in user: {profile.get('display_name')} ({ctx.user_id}), {profile.get('department')}.\n"
@@ -257,6 +267,20 @@ class AgentService:
                 messages.append({"role": "user", "content": "Return ONLY the JSON object matching the response schema."})
         raise LLMUnavailable("agent did not finish within the step limit")
 
+    def _policy_draft(self, ctx: ToolContext, policy: dict[str, Any], user_text: str, steps: list[str],
+                      kb_refs: list[str]) -> None:
+        """Deterministically draft the ticket that the escalation policy requires (never submitted: user confirms)."""
+        facts = [f["summary"] for f in (ctx.diagnostics or {}).get("findings", [])]
+        self.toolbox.call(ctx, "draft_ticket", {
+            "category": policy["category"], "subcategory": policy["subcategory"],
+            "short_description": f"{policy['subcategory']}: {user_text[:80]}",
+            "description": f"User report: {user_text[:600]}\nDirectory findings: " + ("; ".join(facts) or "none")
+                           + f"\nEscalation policy: {policy['reason']}",
+            "impact": policy["impact"], "urgency": policy["urgency"],
+            "steps_attempted": steps or ["Self-help guidance provided by the L1 Virtual Agent"],
+            "diagnostic_codes": [f["code"] for f in (ctx.diagnostics or {}).get("findings", [])],
+            "kb_references": kb_refs})
+
     # ------------------------------------------------------------------ validation
     def _validate(self, reply: AgentReply, ctx: ToolContext, user_text: str = "") -> tuple[AgentReply, list[str]]:
         flags: list[str] = []
@@ -283,23 +307,13 @@ class AgentService:
         policy = turn_policy(ctx, user_text, reply.response_type)
         if policy and not ctx.ticket_draft:
             flags.append("policy_escalation_enforced:" + policy["trigger"])
-            facts = [f["summary"] for f in (ctx.diagnostics or {}).get("findings", [])]
-            self.toolbox.call(ctx, "draft_ticket", {
-                "category": policy["category"], "subcategory": policy["subcategory"],
-                "short_description": f"{policy['subcategory']}: {user_text[:80]}",
-                "description": f"User report: {user_text[:600]}\nDirectory findings: " + ("; ".join(facts) or "none")
-                               + f"\nEscalation policy: {policy['reason']}",
-                "impact": policy["impact"], "urgency": policy["urgency"],
-                "steps_attempted": reply.steps[:5] or ["Self-help guidance provided by the L1 Virtual Agent"],
-                "diagnostic_codes": [f["code"] for f in (ctx.diagnostics or {}).get("findings", [])],
-                "kb_references": [c.source_id for c in reply.citations]})
-            if ctx.ticket_draft:
-                already_said = reply.response_type == "escalate" or "ticket" in reply.message.lower()
-                reply.response_type = "escalate"
-                reply.escalation_reason = reply.escalation_reason or policy["reason"]
-                if not already_said:
-                    reply.message += (" A support engineer also needs to act on this, so I have prepared a ticket "
-                                      "for you: review it and press Confirm to submit it.")
+            self._policy_draft(ctx, policy, user_text, reply.steps[:5], [c.source_id for c in reply.citations])
+        if policy and ctx.ticket_draft:
+            reply.response_type = "escalate"
+            reply.escalation_reason = reply.escalation_reason or policy["reason"]
+            if "confirm" not in reply.message.lower():
+                reply.message += (" A support engineer also needs to act on this, so I have prepared a ticket "
+                                  "for you: review it and press Confirm to submit it.")
         # Deterministic citation: the article governing a blocking AD finding is cited when it was retrieved.
         for f in (ctx.diagnostics or {}).get("findings", []):
             art = f.get("kb_article")

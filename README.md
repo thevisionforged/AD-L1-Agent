@@ -27,6 +27,9 @@ Two web experiences on one local backend:
   * **Approval Center**: nothing changes until an engineer approves. Admin changes follow a two-key rule: the business approval on the ticket plus the engineer's approval.
   * **Queue Insights Agent**: daily digest of where tickets are stuck (SLA breach or risk, approval stalled, waiting on user, no update, ping-pong reassignment, misrouted, missing info, policy violation).
   * **Daily and weekly discussion sheets** (CSV for Excel), a **daily report mailed to the team DL** (after approval), **EOD status notes** for every open ServiceNow ticket (bulk-approved), an **AD health check** (DC replication, services, time skew, SYSVOL, dcdiag, privileged-group and account hygiene), and an **audit trail**.
+  * **Major Ticket Tracker**: major incidents (P1/P2, VIP, wide impact, SLA risk, stalled approvals), AD **change requests** (CAB pending, upcoming windows, missing plans/evidence, failed/backed-out PIR) and overdue/blocked/unassigned **catalog tasks**, each with owner, blocker, next action and next-update time. It is published to a **SharePoint list** and the **AD team's Teams channel** after approval.
+
+**Knowledge grounded on Microsoft guidance:** besides 10 CORP articles, the KB has 12 articles (`sample_data/kb_microsoft/`) written from public Microsoft Learn / Support pages (Entra sign-in error codes, SSPR, password policy, smart lockout, Temporary Access Pass, admin MFA management, least-privileged roles, events 4740/4625, secure-channel repair, replication 1722 and time sync, klist, Authenticator setup). Each cites its sources with CC BY 4.0 attribution. Engineer-only articles are never shown to end users.
 
 ## 4. Agentic Design
 
@@ -37,6 +40,7 @@ Two web experiences on one local backend:
 | **Queue Triage Agent** (rules + LLM) | Works an AD queue ticket: RCA, permissions and approvals needed, proposed actions | Entra Global Reader, AD diagnostics, KB, ServiceNow read | Rules choose the actions; the LLM only drafts the summary, work note and Teams text (validated) |
 | **Queue Insights Agent** (rules + LLM) | Daily digest of stuck work | Deterministic queue metrics | LLM may only cite real ticket numbers |
 | **EOD Status Agent, KB Curator, Health Check** | Routine automation | ServiceNow, KB, DC health snapshot | All writes go through the Approval Center |
+| **Major Tracker Agent** (rules) | Tracks major incidents, changes and tasks for the AD team | ServiceNow read; SharePoint list + Teams channel (publish via approval) | Deterministic selection; upsert by ticket number |
 | **Approval Center** (code) | Human-in-the-loop gate | Mints single-use tokens for ControlledAdmin, ServiceNow, Teams, Mail, KB writes | Two-key rule, identity attestation, privileged groups denied, admin changes never bulk-approved |
 | **Offline rule engine** (code) | Same tools and same output schema without a model | n/a | Used with no key, and as automatic fallback after capped retries |
 
@@ -77,7 +81,8 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1
 
 * End-user L1 Virtual Agent: **http://127.0.0.1:8000/**
 * AD Ops Console (engineers): **http://127.0.0.1:8000/ops**
-* Health endpoint: http://127.0.0.1:8000/api/health (shows `mode` online/offline, model and retrieval mode)
+* Health endpoint: http://127.0.0.1:8000/api/health (shows `mode` online/offline, model, retrieval mode, auth mode); probes `/healthz` and `/readyz`
+* The demo runs with `AUTH_MODE=demo` (user/engineer pickers). Production uses `AUTH_MODE=easyauth` (Microsoft Entra ID, app roles `AD.Engineer` / `AD.Approver`); see [`docs/PRODUCTION_DEPLOYMENT_GUIDE.md`](docs/PRODUCTION_DEPLOYMENT_GUIDE.md)
 * Optional Foundry hosted-agent entrypoint: `.\.venv\Scripts\python.exe -m pip install -r requirements-foundry.txt`, then `.\.venv\Scripts\python.exe src\foundry_host.py` (Responses protocol on port 8088)
 
 ## 8. How to Test
@@ -88,9 +93,10 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1
 .\.venv\Scripts\python.exe -m pytest -q tests
 .\.venv\Scripts\python.exe eval\run_eval.py --mode offline
 .\.venv\Scripts\python.exe eval\run_eval.py --mode online    # needs OPENAI_API_KEY
+.\.venv\Scripts\python.exe eval\regression_live.py --runs 3  # live regression vs OpenAI: golden x3, adversarial, ops agents
 ```
 
-Expected: `85 passed`. The evaluation prints an 18-case golden-set table with response type, citation and routing accuracy. Recorded results are in [`docs/test_results.md`](docs/test_results.md).
+Expected: `111 passed`. The evaluation prints a 21-case golden-set table with response type, citation and routing accuracy. The live regression suite also runs 8 adversarial cases designed to get past the regex guardrails, plus all 12 queue tickets through the triage agent. Recorded results (tests, evaluations, regression, 43-check browser E2E) are in [`docs/test_results.md`](docs/test_results.md).
 
 **Manual demo: end-user portal (`/`).** Pick the user, type the message (or click the scenario button):
 
@@ -114,17 +120,20 @@ Expected: `85 passed`. The evaluation prints an 18-case golden-set table with re
 5. **INC0010012** (Domain Admins request) → flagged as a policy violation; no admin action can be proposed or approved.
 6. **Daily insights & reports** → **Build daily report** → digest of 12 tickets / stuck items, download the daily and weekly CSV sheets, approve the mail to `ad-identity-ops-team@corp.example.com`.
 7. **Draft EOD status updates** → **Approve all EOD notes** → work notes written on every open ticket.
-8. **AD health check** → overall **RED**: DC02↔DC03 replication failing (RPC 1722), DC03 clock offset 312 s with W32Time stopped, a service account in Domain Admins, and more.
+8. **Major ticket tracker** → 8 incidents, 4 changes, 3 tasks with blockers and next actions → **Publish** → approve the SharePoint list update and the Teams channel post.
+9. **AD health check** → overall **RED**: DC02↔DC03 replication failing (RPC 1722), DC03 clock offset 312 s with W32Time stopped, a service account in Domain Admins, and more.
 
 ## 9. Known Limitations
 
 * **All enterprise systems are mocked** over synthetic data, as the hackathon rules require: Entra ID / AD, ServiceNow, Teams, Outlook/DL and the admin role. Connector classes (`src/l1agent/connectors.py`) have the same shape as the Graph/ServiceNow APIs but make no real calls. In production the admin role would be a PIM-activated service principal.
-* **Authentication is simulated** with user and engineer pickers ("simulated SSO"). Production needs Entra ID sign-in and server-side sessions.
+* The demo uses **simulated SSO** (pickers). Production mode `AUTH_MODE=easyauth` (Entra ID + app roles) is implemented and tested, but needs an app registration in a real tenant.
 * State (conversations, drafts, approvals, tickets) is **in memory plus JSON files** in `runtime/`; it resets on restart.
 * The **business approver** (group owner / manager) is simulated by a demo button; in production ServiceNow approvals would arrive by webhook.
 * Live-model latency is 2 to 13 s per turn (several tool calls); the offline engine answers in milliseconds.
 * The Foundry hosted entrypoint (`src/foundry_host.py`) has a fixed demo user, plain-text output and no ticket drafting; the web app is the primary demo.
 * `run.ps1` was written for Windows PowerShell; its steps were verified on Linux with the equivalent commands.
+* The `Dockerfile` was not built in the hackathon sandbox (no Docker daemon); its steps match the verified clean-room install.
+* Live-model behaviour is probabilistic: the regression suite measures stability across runs (see `docs/test_results.md`). Policy decisions are deterministic and do not depend on it.
 * KB coverage is 10 articles; questions outside them get a clarifying question or an escalation, never invented steps.
 
 ---
@@ -132,14 +141,16 @@ Expected: `85 passed`. The evaluation prints an 18-case golden-set table with re
 ### Repository structure
 
 ```
-README.md, run.ps1, .env.example, requirements.txt, requirements-foundry.txt, azure.yaml
+README.md, run.ps1, .env.example, requirements.txt, requirements-foundry.txt, azure.yaml, Dockerfile
 src/serve.py                 web server entrypoint (used by run.ps1)
 src/foundry_host.py          Microsoft Foundry / Agent Framework hosted entrypoint (optional)
 src/l1agent/                 agents, tools, guardrails, connectors, approvals, ops, API, static UI
-sample_data/                 synthetic KB, directory, DC events, ServiceNow queue, health, history
-tests/                       85 pytest tests (unit, 10 safety tests, ops, fake OpenAI server)
-eval/                        golden set + evaluation harness + recorded results
-docs/                        architecture.md/png, test_results.md, demo_script.md, screenshots/
+sample_data/                 synthetic KB, directory, DC events, ServiceNow queue/changes/tasks, health, history
+sample_data/kb_microsoft/    12 KB articles grounded on public Microsoft Learn/Support guidance (with sources)
+tests/                       111 pytest tests (unit, 10 safety categories, ops, tracker, production auth, fake OpenAI server)
+eval/                        golden set, evaluation harness, live regression suite, recorded results
+docs/                        architecture, PRODUCTION_DEPLOYMENT_GUIDE, ENTRA_APP_REGISTRATION_AND_ACCESS_GUIDE,
+                             test_results, demo_script, screenshots
 .github/workflows/ci.yml     CI: tests + offline eval + secret scan
 ```
 

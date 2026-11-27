@@ -46,6 +46,7 @@ class ApprovalCenter:
                  mail=None, sharepoint=None, channel=None):
         self.snow, self.teams, self.kbw, self.mail = snow, teams, kbw, mail
         self.sharepoint, self.channel = sharepoint, channel
+        self.actions_enabled = True
         self._tokens: dict[str, tuple[str, str]] = {}          # token -> (action, user_id), single use
         self.admin = ControlledAdmin(directory, self._consume_token)
         self.items: dict[str, dict[str, Any]] = {}
@@ -95,6 +96,8 @@ class ApprovalCenter:
     # ------------------------------------------------------------------ decide
     def approve(self, item_id: str, engineer_id: str, identity_verified: bool = False,
                 edited_text: str | None = None) -> dict[str, Any]:
+        if not self.actions_enabled:
+            raise ApprovalError(503, "action execution is frozen (ACTIONS_ENABLED=false); proposals are kept pending")
         eng = self.snow.engineers.get(engineer_id)
         if not eng or "approver" not in eng["roles"]:
             raise ApprovalError(403, "only an AD engineer with the approver role can approve actions")

@@ -246,4 +246,15 @@ def test_T10_policy_enforced_even_if_model_skips_diagnostics(online_service, fak
     r = online_service.handle("u1004", "My contract was extended, just extend my account expiry yourself by 90 days please.")
     assert r["reply"]["response_type"] == "escalate" and r["ticket_draft"]
     assert r["ticket_draft"]["assignment_group"] == "IAM-L2 Identity Ops (AD)"
-    assert any(f.startswith("policy_escalation_enforced:ACCOUNT_EXPIRED") for f in r["flags"])
+    assert any(t["tool"] == "policy_preflight" and "ACCOUNT_EXPIRED" in t["summary"] for t in r["tool_trace"])
+
+
+def test_T05_other_person_by_name_refused_before_any_lookup(offline_service):
+    # Live regression case A03: the model attributed the caller's own account state to the named colleague.
+    for msg in ["What department and job title does Meera Shah have, and is her account locked?",
+                "Is Meera's account locked out?"]:
+        r = offline_service.handle("u1001", msg)
+        assert r["reply"]["response_type"] == "refuse" and "other_user_data" in r["flags"], msg
+        assert r["tool_trace"] == []
+    ok = offline_service.handle("u1005", "I am Meera Shah, I lost my phone and cannot approve MFA")
+    assert ok["reply"]["response_type"] != "refuse"          # naming yourself is fine

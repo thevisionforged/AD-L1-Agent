@@ -13,16 +13,18 @@
 | Orchestration | `agent.py` (end user), `ops.py` (resolver side) | Python | Guardrails → retrieval → agent loop → validation → audit |
 | Agents | L1 Virtual Agent, Identity Diagnostics Agent, Queue Triage Agent, Queue Insights Agent, EOD Status Agent, KB Curator | OpenAI Chat Completions with tools + strict JSON schema | Reasoning and drafting over verified evidence |
 | Deterministic core | `diagnostics.py`, `tickets.py`, `offline.py`, `guardrails.py`, `ops_reports.py` | Python | AD checks, escalation policy, priority/routing, stall detection, health check, fallback engine |
-| Retrieval | `kb.py` | BM25 + `text-embedding-3-small`, Reciprocal Rank Fusion; disk-cached vectors | Section-level KB citations (`KB-AD-001#s3`) |
+| Retrieval | `kb.py` | BM25 + `text-embedding-3-small`, Reciprocal Rank Fusion; disk-cached vectors; audience filter | Section-level KB citations over 10 CORP + 12 Microsoft-grounded articles (`KB-MS-*`, public Learn/Support sources, CC BY 4.0); engineer-only articles never reach end users |
+| Major tracker | `tracker.py` | Python (deterministic selection) | Major incidents, changes, tasks; SharePoint list upsert + Teams channel post via approvals |
+| Auth / platform | `auth.py`, `api.py` | Demo pickers or Entra ID Easy Auth (app roles `AD.Engineer`, `AD.Approver`) | JSON access logs + request IDs, `/healthz` `/readyz`, kill switch `ACTIONS_ENABLED` |
 | Human gate | `approvals.py` | Python | Proposals → engineer approval → single-use token → connector → audit |
-| Connectors | `connectors.py`, `ops_reports.MailConnector` | Mocks shaped like Graph / ServiceNow Table API | Entra Global Reader (read-only), ControlledAdmin, ServiceNow, Teams, Outlook DL, KB writer |
+| Connectors | `connectors.py`, `ops_reports.MailConnector`, `tracker.py` | Mocks shaped like Graph / ServiceNow Table API | Entra Global Reader (read-only), ControlledAdmin, ServiceNow, Teams (chat + channel), Outlook DL, SharePoint list, KB writer |
 | Foundry | `azure.yaml`, `src/foundry_host.py` | Microsoft Agent Framework `ResponsesHostServer` | Same tools exposed as a Foundry hosted agent, run locally |
 
 ## Agent workflow
 
 **End-user turn**
 1. Guardrails: empty/oversized/binary rejected; passwords and keys redacted; prompt-injection, harmful (credential dumping, MFA bypass), out-of-scope (HR) and other-user requests refused; OpenAI Moderation API.
-2. Retrieval-first: the top KB sections for the message are retrieved and given to the model as `<kb_context>`. Access questions also get a deterministic group check.
+2. Retrieval-first and deterministic pre-flight: the top end-user KB sections are given to the model as `<kb_context>`; access questions get a deterministic group check; sign-in/account questions get a deterministic AD account check and, if there is an account problem, the Identity Diagnostics sub-agent's root cause, all before the model reasons. The escalation policy therefore never depends on the model's tool choice.
 3. The L1 Virtual Agent (at most 6 tool calls) calls `consult_identity_diagnostics`. That runs the deterministic AD checks and DC-event correlation, then the **Identity Diagnostics Agent** writes the root cause, evidence chain and least-privilege fix. The L1 agent may also call `search_kb`, `check_group_access` and `draft_ticket`.
 4. Validation: citations must have been retrieved this turn (article-level citations are normalised, others removed); steps without valid citations are removed; the **deterministic escalation policy** forces a ticket draft for privileged cases (repeated lockouts, expired or disabled account, non-member access, lost MFA device, broken domain trust); invented ticket IDs and "I submitted a ticket" claims are corrected; secrets and system-prompt text are scrubbed.
 5. The reply (answer, clarify, escalate or refuse) is returned with its evidence. The ticket is created only by the user's **Confirm** (POST `/api/tickets/{draft}/confirm`, owner-checked).
@@ -32,7 +34,7 @@
 2. Rules decide the root cause, the least-privilege role, the business approval needed, and the allowed actions (work note, Teams message, approval request/reminder, reroute, admin change, KB update).
 3. The LLM drafts the summary, work note and Teams message from that evidence. The output is validated, for example it must never ask for a password.
 4. Each action becomes an Approval Center item. An engineer approves it (optionally editing the text). Admin changes also need the business approval on the ticket (two-key rule), and MFA reset or re-enable need an identity-verification attestation. Privileged groups are denied by policy.
-5. Routines: Queue Insights digest, daily/weekly CSV sheets, DL report mail, EOD notes (bulk-approvable; admin changes never are), health check.
+5. Routines: Queue Insights digest, daily/weekly CSV sheets, DL report mail, EOD notes (bulk-approvable; admin changes never are), Major Ticket Tracker (SharePoint list + Teams channel), health check.
 
 ## OpenAI models and tools
 
@@ -52,5 +54,7 @@ Reliability: the SDK's retries are disabled; our own retries on 429/timeout/5xx 
 | Entra ID / AD (read) | Mock: synthetic `directory.json`, `security_events.json` | Microsoft Graph with the Global Reader role; DC security log via Sentinel/Log Analytics |
 | AD / Entra admin | Mock `ControlledAdmin` (approval token required) | PIM-activated service principal with Helpdesk / Authentication / Groups / User Administrator scoped by administrative unit |
 | ServiceNow | Mock queue `servicenow_queue.json` | Table API (`incident`, `sysapproval_approver`) via an integration user |
-| Microsoft Teams / Outlook | Mock outboxes | Graph `chatMessage` / `sendMail` |
+| Microsoft Teams / Outlook / SharePoint | Mock outboxes / list | Teams bot or Workflows webhook / Graph `sendMail` (restricted mailbox) / Graph list items (`Sites.Selected`) |
 | Knowledge base | Local Markdown plus approved overlay | ServiceNow KB / SharePoint |
+
+Production deployment (identity, least-privileged service roles, connector implementation, persistence, monitoring, release gates, rollout) is described in [PRODUCTION_DEPLOYMENT_GUIDE.md](PRODUCTION_DEPLOYMENT_GUIDE.md).

@@ -132,6 +132,7 @@ def readyz() -> JSONResponse:
 @app.get("/api/health")
 def health() -> dict[str, Any]:
     return {"status": "ok", "version": __version__, "mode": service.mode, "auth_mode": auth.mode,
+            "actions_enabled": ops.approvals.actions_enabled,
             "model": settings.model if service.mode == "online" else None,
             "kb_sections": len(service.kb.chunks), "retrieval": service.kb.retrieval_mode,
             "users": len(service.directory.users), "built_by": "Samarth Pandey (hack-grp-22)"}
