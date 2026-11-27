@@ -1,0 +1,11 @@
+{
+  "_note": "SYNTHETIC domain controller events. 4740 = account locked out; 4625 = failed logon. minutes_ago is relative to now.",
+  "events": [
+    {"event_id": 4740, "user_id": "u1001", "minutes_ago": 6,    "dc": "DC01", "caller_computer": "MOB-ARAO-01"},
+    {"event_id": 4740, "user_id": "u1001", "minutes_ago": 190,  "dc": "DC02", "caller_computer": "MOB-ARAO-01"},
+    {"event_id": 4740, "user_id": "u1001", "minutes_ago": 410,  "dc": "DC01", "caller_computer": "MOB-ARAO-01"},
+    {"event_id": 4625, "user_id": "u1001", "minutes_ago": 7,    "dc": "DC01", "caller_computer": "MOB-ARAO-01", "failure": "bad password"},
+    {"event_id": 4625, "user_id": "u1002", "minutes_ago": 25,   "dc": "DC02", "caller_computer": "LT-SAL-1187", "failure": "password expired"},
+    {"event_id": 4625, "user_id": "u1004", "minutes_ago": 15,   "dc": "DC01", "caller_computer": "LT-EXT-0077", "failure": "account expired"}
+  ]
+}

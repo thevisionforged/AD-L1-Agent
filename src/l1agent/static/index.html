@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AD Identity L1 Virtual Agent</title>
+  <meta name="author" content="Samarth Pandey (hack-grp-22)">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">AD</div>
+    <div>
+      <h1>AD Identity L1 Virtual Agent</h1>
+      <p class="sub">Use Case 05 · Service desk &amp; DWP · Active Directory self-help with grounded escalation</p>
+    </div>
+  </div>
+  <div class="status"><span id="mode" class="badge">checking…</span></div>
+</header>
+
+<div class="disclosure" role="note">
+  <strong>AI assistant.</strong> Answers are AI-generated from the IT knowledge base and read-only directory checks. Check them before you act.
+  The agent never asks for passwords, never changes your account, and only submits a ticket when you press <em>Confirm</em>.
+  All users and data are synthetic.
+</div>
+
+<main class="layout">
+  <aside class="panel left">
+    <h2>Signed-in user <span class="hint">(simulated SSO)</span></h2>
+    <select id="user" aria-label="Signed-in user"></select>
+    <div id="profile" class="profile"></div>
+    <h2>Try a scenario</h2>
+    <div id="samples" class="samples"></div>
+    <h2>My tickets</h2>
+    <div id="tickets" class="tickets"><p class="muted">No tickets yet.</p></div>
+  </aside>
+
+  <section class="panel chat">
+    <div id="log" class="log" aria-live="polite">
+      <div class="msg bot"><div class="bubble">Hi! I'm the CORP L1 Virtual Agent. Tell me about a sign-in, password, MFA, access, VPN, Outlook, printer or software problem and I'll check your account and the knowledge base.</div></div>
+    </div>
+    <form id="form" class="composer" autocomplete="off">
+      <textarea id="input" rows="2" maxlength="2500" placeholder="Describe your IT problem… (never type your password)"></textarea>
+      <button id="send" type="submit">Send</button>
+    </form>
+    <div class="row-meta"><span id="meta" class="muted"></span><button id="newconv" class="link" type="button">New conversation</button></div>
+  </section>
+
+  <aside class="panel right">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="evidence" role="tab">Evidence</button>
+      <button class="tab" data-tab="trace" role="tab">Agent trace</button>
+      <button class="tab" data-tab="ticket" role="tab">Ticket draft <span id="draftdot" class="dot hidden"></span></button>
+    </div>
+    <div id="tab-evidence" class="tabpane">
+      <p class="muted">Directory findings, the Identity Diagnostics Agent's root cause and knowledge base citations appear here.</p>
+    </div>
+    <div id="tab-trace" class="tabpane hidden"><p class="muted">Tool calls, guardrail flags and token usage appear here.</p></div>
+    <div id="tab-ticket" class="tabpane hidden"><p class="muted">When the agent escalates, a pre-filled ticket appears here for your review.</p></div>
+  </aside>
+</main>
+
+<footer class="foot">
+  Built by <strong>Samarth Pandey</strong> · <strong>hack-grp-22</strong> · HCLTech DFS TechBee AI Hackathon 2026 ·
+  Model calls are made only from the server-side backend.
+</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

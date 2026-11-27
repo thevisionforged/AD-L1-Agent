@@ -1,0 +1,6 @@
+# OPTIONAL: only needed for the Microsoft Foundry hosted-agent entrypoint (src/foundry_host.py).
+# The main demo (run.ps1) does not need these.
+-r requirements.txt
+agent-framework==1.26.0
+agent-framework-openai==1.18.2
+agent-framework-foundry-hosting==1.0.0b261112

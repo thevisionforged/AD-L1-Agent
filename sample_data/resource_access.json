@@ -1,0 +1,10 @@
+{
+  "_note": "SYNTHETIC map of resources to the AD security group that grants access, and the approver role.",
+  "resources": [
+    {"resource_id": "finance-share", "names": ["finance share", "\\\\fs01\\finance", "finance folder", "finance drive"], "group": "GG-Finance-Share-RW", "approver": "Finance Manager (group owner)"},
+    {"resource_id": "sales-share",   "names": ["sales share", "\\\\fs01\\sales", "sales folder"], "group": "GG-Sales-Share-RW", "approver": "Sales Director (group owner)"},
+    {"resource_id": "hr-share",      "names": ["hr share", "\\\\fs01\\hr", "hr folder"], "group": "GG-HR-Share-RW", "approver": "HR Director (group owner)"},
+    {"resource_id": "eng-repo",      "names": ["engineering repo", "code repository", "eng repo"], "group": "GG-Eng-Repo-R", "approver": "Engineering Manager (group owner)"},
+    {"resource_id": "vpn",           "names": ["vpn", "remote access"], "group": "GG-VPN-Users", "approver": "Line manager"}
+  ]
+}

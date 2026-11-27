@@ -1,0 +1,33 @@
+{
+  "_note": "Enumerated ticket categories, routing table and ITIL-style priority matrix used by the deterministic ticket builder.",
+  "categories": {
+    "Account & Access": ["Account lockout", "Access request", "Account disabled / expired"],
+    "Password & MFA": ["Password reset / change", "MFA"],
+    "Network & VPN": ["VPN"],
+    "Email & Collaboration": ["Outlook"],
+    "Printing": ["Printer setup"],
+    "Software": ["Software request"],
+    "Hardware/Endpoint": ["Domain join", "Other"]
+  },
+  "routing": {
+    "Account lockout": "IAM-L2 Identity Ops (AD)",
+    "Access request": "IAM-L2 Identity Ops (AD)",
+    "Account disabled / expired": "IAM-L2 Identity Ops (AD)",
+    "Password reset / change": "SD-L1 Service Desk",
+    "MFA": "IAM-L2 Identity Ops (AD)",
+    "VPN": "NET-L2 Remote Access",
+    "Outlook": "Messaging-L2",
+    "Printer setup": "EUC-L2 Desktop Support",
+    "Software request": "SD-L1 Service Desk",
+    "Domain join": "EUC-L2 Desktop Support",
+    "Other": "SD-L1 Service Desk"
+  },
+  "levels": ["low", "medium", "high"],
+  "priority_matrix": {
+    "high":   {"high": "P1", "medium": "P2", "low": "P3"},
+    "medium": {"high": "P2", "medium": "P3", "low": "P4"},
+    "low":    {"high": "P3", "medium": "P4", "low": "P4"}
+  },
+  "priority_matrix_axes": "priority_matrix[impact][urgency]",
+  "vip_rule": "VIP requester raises urgency by one level (capped at high)."
+}

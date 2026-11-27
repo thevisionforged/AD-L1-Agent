@@ -1,0 +1,247 @@
+{
+  "_note": "SYNTHETIC data. No real people. Dates are relative to 'now' (days_ago / minutes_ago) so the demo never goes stale.",
+  "domain": {
+    "name": "CORP",
+    "fqdn": "corp.example.com",
+    "max_password_age_days": 90,
+    "password_expiry_warning_days": 14,
+    "lockout_threshold": 5,
+    "lockout_observation_minutes": 30,
+    "lockout_duration_minutes": 30
+  },
+  "users": [
+    {
+      "user_id": "u1001",
+      "sam_account_name": "arao",
+      "display_name": "Asha Rao (synthetic)",
+      "department": "Finance",
+      "title": "Accounts Analyst",
+      "manager_id": "u1006",
+      "vip": false,
+      "enabled": true,
+      "account_expires_days_from_now": null,
+      "password_never_expires": false,
+      "pwd_last_set_days_ago": 20,
+      "bad_pwd_count": 5,
+      "locked_out": true,
+      "lockout_minutes_ago": 6,
+      "mfa_registered": true,
+      "sspr_registered": true,
+      "member_of": [
+        "Domain Users",
+        "GG-Finance-Share-RW",
+        "GG-VPN-Users",
+        "GG-M365-E3"
+      ],
+      "devices": [
+        {
+          "name": "LT-FIN-0421",
+          "type": "laptop",
+          "os": "Windows 11"
+        },
+        {
+          "name": "MOB-ARAO-01",
+          "type": "phone",
+          "os": "iOS"
+        }
+      ]
+    },
+    {
+      "user_id": "u1002",
+      "sam_account_name": "dortiz",
+      "display_name": "Daniel Ortiz (synthetic)",
+      "department": "Sales",
+      "title": "Account Manager",
+      "manager_id": "u1005",
+      "vip": false,
+      "enabled": true,
+      "account_expires_days_from_now": null,
+      "password_never_expires": false,
+      "pwd_last_set_days_ago": 93,
+      "bad_pwd_count": 1,
+      "locked_out": false,
+      "lockout_minutes_ago": null,
+      "mfa_registered": true,
+      "sspr_registered": true,
+      "member_of": [
+        "Domain Users",
+        "GG-Sales-Share-RW",
+        "GG-VPN-Users",
+        "GG-M365-E3"
+      ],
+      "devices": [
+        {
+          "name": "LT-SAL-1187",
+          "type": "laptop",
+          "os": "Windows 11"
+        }
+      ]
+    },
+    {
+      "user_id": "u1003",
+      "sam_account_name": "pnair",
+      "display_name": "Priya Nair (synthetic)",
+      "department": "Engineering",
+      "title": "Software Engineer",
+      "manager_id": "u1006",
+      "vip": false,
+      "enabled": true,
+      "account_expires_days_from_now": null,
+      "password_never_expires": false,
+      "pwd_last_set_days_ago": 86,
+      "bad_pwd_count": 0,
+      "locked_out": false,
+      "lockout_minutes_ago": null,
+      "mfa_registered": true,
+      "sspr_registered": false,
+      "member_of": [
+        "Domain Users",
+        "GG-Eng-Repo-R",
+        "GG-M365-E3"
+      ],
+      "devices": [
+        {
+          "name": "LT-ENG-0932",
+          "type": "laptop",
+          "os": "Windows 11"
+        }
+      ]
+    },
+    {
+      "user_id": "u1004",
+      "sam_account_name": "tbecker.ext",
+      "display_name": "Tom Becker (synthetic contractor)",
+      "department": "IT Projects",
+      "title": "Contractor - Network",
+      "manager_id": "u1006",
+      "vip": false,
+      "enabled": true,
+      "account_expires_days_from_now": -2,
+      "password_never_expires": false,
+      "pwd_last_set_days_ago": 40,
+      "bad_pwd_count": 0,
+      "locked_out": false,
+      "lockout_minutes_ago": null,
+      "mfa_registered": true,
+      "sspr_registered": true,
+      "member_of": [
+        "Domain Users",
+        "GG-Contractors",
+        "GG-VPN-Users"
+      ],
+      "devices": [
+        {
+          "name": "LT-EXT-0077",
+          "type": "laptop",
+          "os": "Windows 11"
+        }
+      ]
+    },
+    {
+      "user_id": "u1005",
+      "sam_account_name": "mshah",
+      "display_name": "Meera Shah (synthetic)",
+      "department": "Executive Office",
+      "title": "Chief Operating Officer",
+      "manager_id": null,
+      "vip": true,
+      "enabled": true,
+      "account_expires_days_from_now": null,
+      "password_never_expires": false,
+      "pwd_last_set_days_ago": 31,
+      "bad_pwd_count": 0,
+      "locked_out": false,
+      "lockout_minutes_ago": null,
+      "mfa_registered": true,
+      "sspr_registered": true,
+      "member_of": [
+        "Domain Users",
+        "GG-Exec-Share-RW",
+        "GG-VPN-Users",
+        "GG-M365-E5"
+      ],
+      "devices": [
+        {
+          "name": "LT-EXE-0005",
+          "type": "laptop",
+          "os": "Windows 11"
+        },
+        {
+          "name": "MOB-MSHAH-02",
+          "type": "phone",
+          "os": "Android"
+        }
+      ]
+    },
+    {
+      "user_id": "u1006",
+      "sam_account_name": "lchen",
+      "display_name": "Liam Chen (synthetic)",
+      "department": "Finance",
+      "title": "Finance Manager",
+      "manager_id": "u1005",
+      "vip": false,
+      "enabled": true,
+      "account_expires_days_from_now": null,
+      "password_never_expires": false,
+      "pwd_last_set_days_ago": 12,
+      "bad_pwd_count": 0,
+      "locked_out": false,
+      "lockout_minutes_ago": null,
+      "mfa_registered": true,
+      "sspr_registered": true,
+      "member_of": [
+        "Domain Users",
+        "GG-Finance-Managers",
+        "GG-VPN-Users",
+        "GG-M365-E3"
+      ],
+      "devices": [
+        {
+          "name": "LT-FIN-0102",
+          "type": "laptop",
+          "os": "Windows 11"
+        }
+      ]
+    },
+    {
+      "user_id": "u1007",
+      "sam_account_name": "sali",
+      "display_name": "Sara Ali (synthetic)",
+      "department": "HR",
+      "title": "HR Generalist",
+      "manager_id": "u1005",
+      "vip": false,
+      "enabled": false,
+      "account_expires_days_from_now": null,
+      "password_never_expires": false,
+      "pwd_last_set_days_ago": 50,
+      "bad_pwd_count": 0,
+      "locked_out": false,
+      "lockout_minutes_ago": null,
+      "mfa_registered": false,
+      "sspr_registered": false,
+      "member_of": [
+        "Domain Users",
+        "GG-HR-Share-RW"
+      ],
+      "devices": [
+        {
+          "name": "LT-HR-0310",
+          "type": "laptop",
+          "os": "Windows 11"
+        }
+      ]
+    }
+  ],
+  "group_nesting": {
+    "_note": "child group -> parent groups it is a member of (AD nested groups)",
+    "GG-Finance-Managers": [
+      "GG-Finance-Share-RW"
+    ],
+    "GG-Exec-Share-RW": [
+      "GG-Finance-Share-RW",
+      "GG-HR-Share-RW"
+    ]
+  }
+}

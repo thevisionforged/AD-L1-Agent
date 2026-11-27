@@ -1,0 +1,23 @@
+# Secrets - never commit
+.env
+.env.*
+!.env.example
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+.pytest_cache/
+# Runtime state (tickets, audit log, embedding cache)
+runtime/
+*.log
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+# Build / package output
+dist/
+build/
+*.zip
