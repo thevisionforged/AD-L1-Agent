@@ -274,3 +274,27 @@
 | test_tracker.py | `test_publish_is_gated_and_idempotent` | PASSED |
 | test_tracker.py | `test_tracker_api_rbac` | PASSED |
 | test_tracker.py | `test_long_channel_post_can_be_approved_with_edits` | PASSED |
+
+---
+
+## v2 agent (OpenAI Agents SDK): specs and live results
+
+Built by Samarth Pandey (hack-grp-22). The v2 suite follows a spec-driven agent-testing approach: the **real** Agents SDK loop runs against a scripted model endpoint (no network), so every safety and orchestration guarantee is checked exactly; a separate live spec runs the same scenarios against the real OpenAI API.
+
+| Suite | Result |
+|---|---|
+| Full pytest suite (`python -m pytest -q tests`) | **185 passed** |
+| v2 agent-loop specs (`tests/test_v2_agent_loop.py`, scripted model, real SDK loop) | **29 passed** |
+| Organisation connectors (`tests/test_org_integration.py`: Entra sign-in, ServiceNow, Teams) | **14 passed** |
+| v2 live spec (`eval/v2_live_spec.py`, real OpenAI API, gpt-4.1-mini) | **21/21 passed** (`eval/results/v2_live_spec.json`) |
+
+**What the v2 specs prove**
+
+| Area | Spec |
+|---|---|
+| Scenarios | lockout diagnosed via the sub-agent with directory evidence; greeting uses no tools; draft → approval pause → ticket only after approval; rejected approval creates nothing; another user cannot approve; approvals are single use |
+| Safety | passwords/keys never reach the model; injection refused with **zero** model requests; fabricated KB citations removed; citations without retrieval removed; replies leaking instructions or the key rejected |
+| Provider failures | timeout, unreachable, 500, 401, 429, 404, malformed JSON, failure mid-run, unknown tool, model that never finishes, overall deadline → rule-based fallback with the reason, no key in output |
+| Orchestration | 10-call budget shared with the sub-agent (refusals reported to the model); duplicate calls rejected (case/space-insensitive); oversized arguments rejected; tool results ≤ 4,000 characters; tools accept no user identifier |
+| Runtime configuration | configured model, `parallel_tool_calls=false`, `max_tokens=700`, bearer key, 7 tools, system instructions; invalid model name / non-https endpoint rejected without exposing the key |
+| Organisation integration | Entra ID token: signature, audience, nonce, tenant checked; state mismatch and open redirect refused; tampered/expired/foreign session cookies rejected; entra mode redirects pages to Microsoft and returns 401 for APIs; org users get their own identity; ServiceNow caller lookup, incident body and auth; Teams Adaptive Card and webhook host allow-list |
