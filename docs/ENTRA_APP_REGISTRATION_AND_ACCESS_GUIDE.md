@@ -38,6 +38,7 @@ Why read and write are separate: the write identity's permissions are only ever 
 | AD DS OU delegation, gMSA, hybrid worker | Domain administrator (one-off, under change control) |
 
 Licensing (from Microsoft Learn):
+
 - **Administrative units:** each administrator assigned a directory role scoped to an administrative unit needs a **Microsoft Entra ID P1** licence.
 - **Privileged Identity Management:** requires the appropriate Microsoft Entra ID Governance licensing.
 
@@ -46,6 +47,7 @@ Licensing (from Microsoft Learn):
 ## 3. Identity A: web app registration (sign-in, app roles)
 
 ### 3.1 Create the registration
+
 1. Easiest route: in the **Container App** (Security > Authentication) or **App Service** (Settings > Authentication), select **Add identity provider** > **Microsoft**. The platform can create the registration for you.
 2. Manual route (if your account cannot create registrations): in the Microsoft Entra admin center create an app registration:
    - Supported account types: **Accounts in this organizational directory only (single tenant)**.
@@ -63,10 +65,12 @@ Licensing (from Microsoft Learn):
 | AD Approver | Users/Groups | `AD.Approver` | Approve or reject proposed actions (admin changes, ServiceNow updates, Teams/DL messages, SharePoint, KB publish) |
 
 Rules:
+
 - The **Value** appears in the token's `roles` claim; the app checks these exact strings (`src/l1agent/auth.py`). Values cannot contain spaces.
 - Enable both roles. No app role is needed for end users of the L1 portal: being assigned to the app is enough.
 
 ### 3.3 Restrict who can sign in and assign roles (Enterprise apps > `ad-l1-agent`)
+
 1. **Properties** > **Assignment required?** = **Yes**. Only assigned users and groups can then get a token for the app.
 2. **Users and groups** > **Add user/group**, then assign:
 
@@ -77,14 +81,17 @@ Rules:
 | `SG-ADL1-AD-Approvers` | AD Approver | Senior engineers / team lead (approvals). Members also need AD Engineer |
 
 Notes from Microsoft Learn:
+
 - Assigning a **service principal** to a group that holds an app role does **not** put the role in tokens issued to that service principal. Assign roles to people (via groups), not to automation through groups.
 - App roles and groups are not mutually exclusive. We use app roles because they are defined by the application and survive tenant moves, unlike group object IDs.
 
 *(general guidance)*
+
 - Group-based assignment to enterprise apps depends on your licensing tier; confirm it in your tenant.
 - Keep the approver group small, and review it quarterly with access reviews.
 
 ### 3.4 Configure platform authentication
+
 1. **Require authentication**. For unauthenticated requests use **HTTP 302 Found redirect** (recommended for websites).
 2. Token store: enable if you later need downstream tokens; this app does not.
 3. Allowed token audiences: only needed if other clients call the API with access tokens.
@@ -133,6 +140,7 @@ Graph **application** permissions apply to the whole tenant. For user-management
 | Add to a cloud security group | **Groups Administrator** or **group owner** | AU containing the share groups | `GroupMember.ReadWrite.All` |
 
 Hard rules (also enforced in code):
+
 - **Never** grant Privileged Authentication Administrator, Privileged Role Administrator or Global Administrator to the executor.
 - Admin users and privileged groups are out of scope. The code denies privileged groups, and AU scoping keeps admins out.
 - An AU-scoped User Administrator can manage the authentication methods of users only if those users are **direct members of the AU**. Put users, not just groups, in the AU.
@@ -148,9 +156,11 @@ Test-ServicePrincipalAuthorization -Identity <service-principal-object-id> -Reso
 Do not also grant tenant-wide `Mail.Send` in Entra, or the restriction is bypassed *(general guidance: verify against your Exchange configuration)*.
 
 ### 5.3 SharePoint tracker list: `Sites.Selected`
+
 - `Sites.Selected` (application) allows "access [to] a subset of site collections". Grant it, then give the identity **write** permission on the AD Identity Ops site only. The agent upserts items in the "AD Major Ticket Tracker" list.
 
 ### 5.4 Teams
+
 - `ChannelMessage.Send` exists **only as a delegated permission** (no application permission), so a background service cannot post to a channel with app-only Graph.
 - Use a **Teams Workflows webhook** for the AD channel tracker post, or a **Teams bot** for 1:1 user messages and channel posts.
 
@@ -203,6 +213,7 @@ The automated equivalents of checks 2 to 5 are in `tests/test_production.py`.
 ---
 
 ## 9. Governance
+
 - **Access reviews:** quarterly for `SG-ADL1-AD-Approvers` and `SG-ADL1-AD-Engineers`.
 - **Credentials:** no long-lived secrets. Use managed identities and federated credentials; if a client secret is unavoidable, store it in Key Vault and rotate it before expiry.
 - **Monitoring:** watch sign-ins and audit logs for the executor identities. Alert on any use outside the app or outside the expected operations.
@@ -212,6 +223,7 @@ The automated equivalents of checks 2 to 5 are in `tests/test_production.py`.
 ---
 
 ## 10. Sources (Microsoft Learn, retrieved 27-Nov-2026)
+
 - Add app roles to your application and receive them in the token: https://learn.microsoft.com/en-us/entra/identity-platform/howto-add-app-roles-in-apps
 - Restrict your app to a set of users (Assignment required): https://learn.microsoft.com/en-us/entra/identity-platform/howto-restrict-your-app-to-a-set-of-users
 - Register an application: https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app

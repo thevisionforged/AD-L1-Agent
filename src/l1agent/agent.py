@@ -211,23 +211,27 @@ class AgentService:
                     # Account problem found: the orchestrator consults the Identity Diagnostics sub-agent itself,
                     # so the root-cause analysis is always produced (not left to the model's tool choice).
                     rca = self.toolbox.call(ctx, "consult_identity_diagnostics", {"problem": text[:500]})
-                pol = turn_policy(ctx, text, "escalate") if diag["escalation_policy"].get("escalation_required") else None
-                if pol and not ctx.ticket_draft:
-                    # Rules decide: the policy-required ticket is drafted up front; the model only explains it.
-                    self._policy_draft(ctx, pol, text, [], sorted(ctx.retrieved_ids)[:5])
-                    ctx.trace.append({"tool": "policy_preflight", "args": {}, "ok": True,
-                                      "summary": f"escalation required ({pol['trigger']}) -> {ctx.ticket_draft['draft_id']}"})
                 preflight += ("\n<account_check note='Deterministic AD account check already run; authoritative'>\n"
                               + json.dumps({"findings": [{k: f[k] for k in ("code", "severity", "summary", "kb_article")}
                                                          for f in diag["findings"]],
                                             "escalation_policy": diag["escalation_policy"],
                                             "identity_diagnostics_agent": None if not rca else
                                             {k: rca.get(k) for k in ("root_cause", "evidence", "recommended_actions",
-                                                                     "privileged_action_required", "resolver_group")},
-                                            "ticket_draft_already_prepared": None if not ctx.ticket_draft else
-                                            {k: ctx.ticket_draft[k] for k in ("draft_id", "subcategory", "priority",
-                                                                              "assignment_group")}},
+                                                                     "privileged_action_required", "resolver_group")}},
                                            default=str) + "\n</account_check>")
+        # Rules decide: evaluate the full deterministic escalation policy once, after all pre-checks (account
+        # findings, access check, lost MFA device, broken domain trust), and draft the required ticket up front.
+        pol = turn_policy(ctx, text, "answer")
+        if pol and not ctx.ticket_draft:
+            self._policy_draft(ctx, pol, text, [], sorted(ctx.retrieved_ids)[:5])
+            ctx.trace.append({"tool": "policy_preflight", "args": {}, "ok": True,
+                              "summary": f"escalation required ({pol['trigger']}) -> {(ctx.ticket_draft or {}).get('draft_id')}"})
+        if ctx.ticket_draft:
+            preflight += ("\n<policy note='Escalation is mandatory; the ticket draft already exists'>\n"
+                          + json.dumps({"reason": pol["reason"] if pol else None,
+                                        "ticket_draft_already_prepared": {k: ctx.ticket_draft[k] for k in
+                                                                          ("draft_id", "subcategory", "priority",
+                                                                           "assignment_group")}}) + "\n</policy>")
         messages.append({"role": "user", "content":
                          f"Signed-in user: {profile.get('display_name')} ({ctx.user_id}), {profile.get('department')}.\n"
                          f"<user_message>\n{text}\n</user_message>\n"

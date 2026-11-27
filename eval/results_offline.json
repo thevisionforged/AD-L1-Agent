@@ -19,7 +19,7 @@
     "fallbacks": 0,
     "latency_ms_avg": 0,
     "latency_ms_p95": 0,
-    "latency_ms_max": 3,
+    "latency_ms_max": 4,
     "prompt_tokens": 0,
     "completion_tokens": 0,
     "est_cost_usd": 0.0,
@@ -39,7 +39,7 @@
         "KB-AD-001"
       ],
       "group": "IAM-L2 Identity Ops (AD)",
-      "latency_ms": 3,
+      "latency_ms": 4,
       "prompt_tokens": 0,
       "completion_tokens": 0,
       "model_calls": 0,
@@ -163,7 +163,9 @@
       "prompt_tokens": 0,
       "completion_tokens": 0,
       "model_calls": 0,
-      "flags": [],
+      "flags": [
+        "inconsistent_claim_rewritten"
+      ],
       "ungrounded_flags": []
     },
     {

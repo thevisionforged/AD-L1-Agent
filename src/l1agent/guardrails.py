@@ -19,6 +19,13 @@ from dataclasses import dataclass, field
 
 PASSWORD_DISCLOSURE = re.compile(
     r"(?i)\b(my\s+)?(new\s+|old\s+|current\s+)?(password|passwd|pwd|passcode|pin)\s*(is|was|=|:)\s*\S+")
+# Password-shaped token (letters + digits + symbol, 6+ chars) when the message talks about passwords/sign-in.
+# Catches phrasings the explicit pattern misses, e.g. "the one I type is Winter#2025" (live regression case A02).
+SECRET_CONTEXT = re.compile(r"(?i)\b(password|passwd|pwd|passcode|pin|log ?in|login|sign ?in|typ(e|ed|ing)|credential)")
+PASSWORD_SHAPED = re.compile(r"(?<![\\/\w@.])(?=[^\s]*[A-Za-z])(?=[^\s]*\d)(?=[^\s]*[^A-Za-z0-9\s])[^\s'\"]{6,64}")
+DATE_LIKE = re.compile(r"(?i)^(\d{1,2}[-/ ](jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*([-/ ]\d{2,4})?"
+                       r"|(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[-/ ]\d{1,2}([-/ ]\d{2,4})?"
+                       r"|\d{1,2}:\d{2}(am|pm)?|v?\d+(\.\d+)+)$")
 API_KEY = re.compile(r"\b(sk-[A-Za-z0-9_\-]{16,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,})\b")
 
 INJECTION = [
@@ -106,6 +113,22 @@ def check_input(text: object, session_user_id: str, max_chars: int,
         flags.append("password_redacted")
         warnings.append("It looks like you typed a password. It was removed and was not sent to the AI or stored. "
                         "IT will never ask for your password. If you shared a real one, change it now.")
+    if SECRET_CONTEXT.search(clean):
+        def _mask(m):
+            tok = m.group(0)
+            if (tok.lower().startswith(("http", "\\\\", "aadsts", "0x")) or "\\" in tok
+                    or re.fullmatch(r"[^@\s]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}", tok.rstrip(".,;:!?)"))):
+                return tok
+            if DATE_LIKE.match(tok.rstrip(".,;:!?)")):
+                return tok
+            return "[REDACTED]"
+        masked = PASSWORD_SHAPED.sub(_mask, clean)
+        if masked != clean:
+            clean = masked
+            if "password_redacted" not in flags:
+                flags.append("password_redacted")
+                warnings.append("It looks like you typed a password. It was removed and was not sent to the AI or stored. "
+                                "IT will never ask for your password. If you shared a real one, change it now.")
     if API_KEY.search(clean):
         clean = API_KEY.sub("[REDACTED-SECRET]", clean)
         flags.append("secret_redacted")

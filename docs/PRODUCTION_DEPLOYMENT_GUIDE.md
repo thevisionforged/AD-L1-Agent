@@ -13,7 +13,7 @@
 
 | Area | State in this release | Evidence |
 |---|---|---|
-| Agent logic, guardrails, escalation policy, approval gate | **Ready** | 111 automated tests; live regression suite (`eval/regression_live.py`) |
+| Agent logic, guardrails, escalation policy, approval gate | **Ready** | 120 automated tests; live regression suite (`eval/regression_live.py`) |
 | Authentication | **Ready**: `AUTH_MODE=easyauth` (Entra ID via App Service / Container Apps auth, app roles `AD.Engineer`, `AD.Approver`) | `tests/test_production.py` |
 | Observability basics | **Ready**: JSON access logs with request IDs, per-turn audit JSONL, `/healthz`, `/readyz` | `api.py` |
 | Kill switch | **Ready**: `ACTIONS_ENABLED=false` freezes all execution | `test_kill_switch_freezes_execution` |
@@ -47,6 +47,7 @@ Log Analytics + Application Insights (logs, metrics, alerts)
 ```
 
 Design principles carried into production:
+
 - **Only the backend calls models and APIs.** The browser never receives keys or tokens.
 - **Agents propose, humans approve.** Every write goes through the Approval Center: a single-use token, then the connector, then the audit log.
 - **Rules decide, the LLM drafts.** Account state, escalation, priority, routing and allowed actions are deterministic code.
@@ -56,6 +57,7 @@ Design principles carried into production:
 ## 3. Identity and access design
 
 ### 3.1 App registration (the web app)
+
 1. Register `ad-l1-agent` in Microsoft Entra ID. Redirect URI: `https://<app-host>/.auth/login/aad/callback`.
 2. Create **app roles**: `AD.Engineer` (open the Ops Console, triage, propose) and `AD.Approver` (approve/reject actions). Assign them to Entra **groups** (for example `SG-AD-Ops-Engineers`, `SG-AD-Ops-Approvers`), not to individuals.
 3. Enable **assignment required** on the enterprise app, so only assigned users and groups can sign in.
@@ -78,6 +80,7 @@ Design principles carried into production:
 | Privileged groups (Domain Admins etc.) | **None** | Denied by policy in code; PIM/CAB only |
 
 Additional controls:
+
 - Humans use **PIM** (just-in-time, approval, MFA). The executor identity holds only AU-scoped roles and is exercised only by the Approval Center.
 - Separate identities for read and write paths.
 - Monitoring of the workload identities' sign-ins.
@@ -117,6 +120,7 @@ Contract tests: for each connector, add tests that run the same scenarios as `te
 | Knowledge base + embeddings | Markdown + disk cache | Keep, or Azure AI Search (hybrid) for scale |
 
 PII:
+
 - The audit stores a redacted input preview (passwords and keys removed) and user IDs.
 - Set retention and access controls accordingly, and complete a DPIA before go-live.
 
@@ -180,6 +184,7 @@ PII:
 Every request carries `X-Request-ID`; include it when raising support cases.
 
 ### 8.2 Runbooks
+
 - **Model outage or rate limiting:** no action needed; turns fall back to the offline engine automatically (banner shown). For prolonged incidents set `AGENT_MODE=offline`.
 - **Suspected misuse or unsafe actions:** set `ACTIONS_ENABLED=false` (freeze), review the approvals audit, rotate the affected credentials.
 - **Key rotation:** rotate in Key Vault and restart the revision. Keys are never logged.
@@ -202,6 +207,7 @@ Every request carries `X-Request-ID`; include it when raising support cases.
 ---
 
 ## 10. Responsible AI and compliance
+
 - **Disclosure:** AI disclosure on every page, and in Teams and DL content ("AI-assisted").
 - **Approvals:** human approval for every write. Admin changes need two keys (business approver plus engineer) and an identity attestation for MFA reset or re-enable.
 - **Scope:** refusals for out-of-scope, harmful, other-user and privileged-access requests. Indirect prompt injection in quoted content is neutralised.
@@ -220,6 +226,7 @@ Every request carries `X-Request-ID`; include it when raising support cases.
 | 3. Scale | ongoing | More assignment groups, KB expansion, end-user portal in the company portal | Agreed KPIs (section 12) |
 
 ## 12. KPIs to track
+
 - Ticket deflection (L1 self-service resolution rate).
 - Median time to first evidence-based response.
 - Misroute rate.
