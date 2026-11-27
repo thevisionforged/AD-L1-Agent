@@ -88,6 +88,7 @@ class ToolContext:
     # (problem, diagnostics, events) -> analysis; set per request by the orchestrator (None = deterministic)
     analyser: Callable[[str, dict, list], dict] | None = None
     access_check: dict[str, Any] | None = None
+    conversational: bool = False      # greeting / thanks / "what can you do": no account workflow, no tickets
     ticket_draft: dict[str, Any] | None = None
     trace: list[dict[str, Any]] = field(default_factory=list)
 

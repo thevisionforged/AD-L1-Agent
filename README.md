@@ -98,7 +98,7 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1
 .\.venv\Scripts\python.exe eval\regression_live.py --runs 3  # live regression vs OpenAI: golden x3, adversarial, ops agents
 ```
 
-Expected: `120 passed`. The evaluation prints a 21-case golden-set table with response type, citation and routing accuracy. The live regression suite also runs 8 adversarial cases designed to get past the regex guardrails, plus all 12 queue tickets through the triage agent. Recorded results (tests, evaluations, regression, 43-check browser E2E) are in [`docs/test_results.md`](docs/test_results.md).
+Expected: `128 passed`. The evaluation prints a 21-case golden-set table with response type, citation and routing accuracy. The live regression suite also runs 8 adversarial cases designed to get past the regex guardrails, plus all 12 queue tickets through the triage agent. Recorded results (tests, evaluations, regression, 43-check browser E2E) are in [`docs/test_results.md`](docs/test_results.md).
 
 **Manual demo: end-user portal (`/`).** Pick the user, type the message (or click the scenario button):
 
@@ -149,7 +149,7 @@ src/foundry_host.py          Microsoft Foundry / Agent Framework hosted entrypoi
 src/l1agent/                 agents, tools, guardrails, connectors, approvals, ops, API, static UI
 sample_data/                 synthetic KB, directory, DC events, ServiceNow queue/changes/tasks, health, history
 sample_data/kb_microsoft/    12 KB articles grounded on public Microsoft Learn/Support guidance (with sources)
-tests/                       120 pytest tests (unit, 10 safety categories, ops, tracker, production auth, fake OpenAI server)
+tests/                       128 pytest tests (unit, 10 safety categories, conversation, ops, tracker, production auth, fake OpenAI server)
 eval/                        golden set, evaluation harness, live regression suite, recorded results
 docs/                        architecture, PRODUCTION_DEPLOYMENT_GUIDE, ENTRA_APP_REGISTRATION_AND_ACCESS_GUIDE,
                              test_results, demo_script, screenshots

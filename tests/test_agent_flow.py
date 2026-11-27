@@ -73,3 +73,36 @@ def test_clarify_then_escalate(offline_service):
     assert r1["reply"]["response_type"] == "clarify"
     r2 = offline_service.handle("u1006", "the display goes black randomly", conversation_id=r1["conversation_id"])
     assert r2["reply"]["response_type"] == "escalate" and r2["ticket_draft"]
+
+
+@pytest.mark.parametrize("msg", ["What are your capabilities and limitations", "hi", "what can you do?",
+                                 "Are you a bot or a real person?"])
+def test_conversational_questions_answered_directly(offline_service, msg):
+    # User feedback: "what are your capabilities" was hijacked by the lockout workflow and escalated.
+    r = offline_service.handle("u1001", msg)
+    assert r["reply"]["response_type"] == "answer"
+    assert r["ticket_draft"] is None and offline_service.tickets.drafts == {}
+    assert not any(t["tool"] in ("account_preflight", "consult_identity_diagnostics", "draft_ticket") for t in r["tool_trace"])
+    if "hi" != msg:
+        assert "only look at your own" in r["reply"]["message"] or "can't make changes" in r["reply"]["message"]
+    assert "locked out" in r["reply"]["message"]          # gentle offer, not a takeover
+
+
+def test_thanks_has_no_account_nag(offline_service):
+    r = offline_service.handle("u1001", "thanks, that worked")
+    assert r["reply"]["response_type"] == "answer" and "locked" not in r["reply"]["message"]
+
+
+def test_online_conversational_turn_uses_no_tools(online_service, fake_openai):
+    fake_openai.script = [final(message="I can check your own account and give cited steps. By the way, I can see your account is currently locked out. Would you like me to help with that?")]
+    r = online_service.handle("u1001", "What are your capabilities and limitations")
+    assert r["engine"] == "online" and r["reply"]["response_type"] == "answer"
+    assert r["ticket_draft"] is None and r["tool_trace"] == []
+    body = [q for q in fake_openai.requests if q["path"].endswith("/chat/completions")][0]["body"]
+    assert "tools" not in body
+
+
+def test_real_problem_still_escalates_after_conversation(offline_service):
+    r1 = offline_service.handle("u1001", "hi")
+    r2 = offline_service.handle("u1001", "My account keeps getting locked out", conversation_id=r1["conversation_id"])
+    assert r2["reply"]["response_type"] == "escalate" and r2["ticket_draft"]

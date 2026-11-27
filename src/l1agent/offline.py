@@ -64,7 +64,67 @@ def _steps_from(text: str) -> list[str]:
     return steps
 
 
+CONVERSATIONAL = {
+    "capabilities": re.compile(r"(?i)\b(what (can|do) you (do|help)|capabilit|limitation|who are you|what are you|"
+                               r"how (do|can) you (work|help)|what is this|help me understand|what should i ask|"
+                               r"how does this work|are you (an? )?(ai|bot|human|real))"),
+    "greeting": re.compile(r"(?i)^\s*(hi|hello|hey|good (morning|afternoon|evening)|namaste|yo)\b[\s!.,]*(there|team|bot|agent)?[\s!.]*$"),
+    "thanks": re.compile(r"(?i)^\s*(thanks|thank you|thx|cheers|great|perfect|ok(ay)?|got it|that worked|it worked)\b.{0,40}$"),
+}
+
+CAPABILITIES_TEXT = (
+    "I'm the CORP L1 Virtual Agent, an AI assistant for identity and IT sign-in issues. I can: check your own Active "
+    "Directory account (lockouts and what is causing them, password or account expiry, disabled account, MFA "
+    "registration, group membership for shares), give step-by-step fixes from the IT knowledge base with sources, "
+    "help with MFA on a new phone, VPN and Outlook sign-in problems, printers and software requests, and prepare a "
+    "pre-filled ticket for a support engineer when something needs an admin. My limits: I can only look at your own "
+    "account, I can't make changes myself (no unlocking, password resets or group changes), I never ask for your "
+    "password, tickets are only submitted when you press Confirm, and I only cover IT topics (not HR or payroll). "
+    "What would you like help with?")
+
+
+def detect_conversational(text: str) -> str | None:
+    """Greeting / thanks / questions about the assistant itself: answer directly, never run account workflows."""
+    for kind, pat in CONVERSATIONAL.items():
+        if pat.search(text):
+            if kind == "capabilities" or detect_intent(text) is None:
+                return kind
+    return None
+
+
+def account_hint(toolbox: ToolBox, user_id: str) -> str | None:
+    """One-line, non-intrusive mention of a blocking account problem (no ticket, no escalation)."""
+    from .diagnostics import run_diagnostics
+    d = run_diagnostics(toolbox.directory, user_id)
+    top = next((f for f in d.get("findings", []) if f["severity"] in ("critical", "high")), None)
+    if not top:
+        return None
+    what = {"LOCKED_OUT": "your account is currently locked out", "REPEATED_LOCKOUTS": "your account keeps getting locked out",
+            "PASSWORD_EXPIRED": "your password has expired", "ACCOUNT_EXPIRED": "your account has passed its end date",
+            "ACCOUNT_DISABLED": "your account is disabled"}.get(top["code"], top["summary"].rstrip("."))
+    return f"By the way, I can see {what}. Would you like me to help with that?"
+
+
+def conversational_reply(kind: str, toolbox: ToolBox, user_id: str) -> AgentReply:
+    name = (toolbox.directory.get(user_id) or {}).get("display_name", "").split(" (")[0].split(" ")[0]
+    hint = account_hint(toolbox, user_id)
+    if kind == "greeting":
+        msg = f"Hi {name}! I'm the CORP L1 Virtual Agent. Tell me what's going on with your sign-in, password, MFA, access, VPN or Outlook and I'll take a look."
+    elif kind == "thanks":
+        msg = "You're welcome! If anything else comes up, just ask here."
+        hint = None
+    else:
+        msg = CAPABILITIES_TEXT
+    if hint:
+        msg += " " + hint
+    return AgentReply(response_type="answer", message=msg, confidence="high")
+
+
 def run_offline(toolbox: ToolBox, ctx: ToolContext, text: str, history: list[dict[str, str]]) -> AgentReply:
+    kind = detect_conversational(text)
+    if kind:
+        ctx.conversational = True
+        return conversational_reply(kind, toolbox, ctx.user_id)
     intent = detect_intent(text)
     previous_clarify = bool(history) and history[-1].get("response_type") == "clarify"
     if intent is None and previous_clarify:

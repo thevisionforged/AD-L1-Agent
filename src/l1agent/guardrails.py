@@ -61,7 +61,10 @@ SYSTEM_PROMPT_MARKERS = ["L1-AGENT-POLICY", "You are the CORP L1 Virtual Agent"]
 # Indirect prompt injection: instructions addressed to the AI hidden inside quoted content (emails, tickets).
 EMBEDDED_INSTRUCTION = re.compile(
     r"(?is)[\"'“‘]?\s*\b(system|admin|administrator|developer|it|security)?\s*(note|message|instruction|instructions|command|directive)s?"
-    r"\s*(to|for)\s*(the\s*)?(ai|assistant|agent|bot|model|copilot)\b\s*[:\-]?[^\"'”’\n]{0,300}[\"'”’]?")
+    r"\s*(to|for)\s*(the\s*)?(ai|assistant|agent|bot|model|copilot)\b\s*[:\-]?"
+    # Quoted payload: remove up to the closing quote. Unquoted: remove only up to the end of that sentence,
+    # so the user's own description that follows (e.g. "My printer is not working.") is kept.
+    r"(?:\s*[\"“‘'][^\"'”’\n]{0,300}[\"'”’]|[^\"'”’\n]{0,300}?(?:[.!?](?=[\s\"'”’]|$)|$))[\"'”’]?")
 
 
 @dataclass

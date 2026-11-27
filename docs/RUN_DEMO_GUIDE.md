@@ -120,6 +120,7 @@ For live AI, edit `.env` (`nano .env`), set `OPENAI_API_KEY`, and start again.
 ## Part 3: The 5-minute demo click-path
 
 ### End-user portal: http://127.0.0.1:8000/
+0. Say hello or ask **"What can you do?"**. The agent answers like a person: what it can and cannot do, plus a one-line offer if your account has a problem. No ticket is raised for small talk.
 1. **Signed-in user** = *Asha Rao*. Click the scenario **"My account keeps getting locked out every few hours"**, then press **Send**. Expected: **ESCALATE**, with the root cause (her phone MOB-ARAO-01 keeps using an old password, 3 lockouts) and cited steps.
 2. Open the right-hand tabs:
    - **Evidence:** AD findings, the Identity Diagnostics Agent's root cause, KB citations.
@@ -142,6 +143,15 @@ For live AI, edit `.env` (`nano .env`), set `OPENAI_API_KEY`, and start again.
 All users, tickets and systems are **synthetic**. Nothing touches a real Active Directory, ServiceNow or Teams.
 
 ---
+
+## How do new users give input?
+
+- **In this demo:** there is no sign-up. Pick one of the 7 synthetic people in **Signed-in user** (simulated sign-in) and type in the chat box. Only people in `sample_data/directory.json` exist.
+- **In production:** nobody registers. Any employee opens the app URL and signs in with their normal work account (Microsoft Entra ID single sign-on, `AUTH_MODE=easyauth`). The app takes their identity from the sign-in and reads their account details live from Entra ID / Active Directory.
+  - **Access:** controlled by assigning an Entra group (for example all employees) to the app.
+  - **New joiners:** get access automatically when they are added to that group.
+  - **Setup:** see [ENTRA_APP_REGISTRATION_AND_ACCESS_GUIDE.md](ENTRA_APP_REGISTRATION_AND_ACCESS_GUIDE.md), section 3.3.
+- **Other channels:** a Microsoft Teams bot or a service-desk mailbox in front of the same agent is a planned enhancement and is not built yet.
 
 ## Part 4: If something goes wrong
 
@@ -171,4 +181,4 @@ Mac / Linux:
 ```bash
 .venv/bin/python -m pytest -q tests
 ```
-Expected: `120 passed`.
+Expected: `128 passed`.

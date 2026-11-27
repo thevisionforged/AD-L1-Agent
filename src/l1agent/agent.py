@@ -185,17 +185,37 @@ class AgentService:
         messages: list[dict[str, Any]] = [{"role": "system", "content": self.system_prompt}]
         for h in conv.history[-6:]:
             messages.append({"role": h["role"], "content": h["text"][:800]})
-        kb_context = self.toolbox.prefetch(ctx, text)
         preflight = ""
         from .diagnostics import run_diagnostics
-        from .offline import detect_intent
+        from .offline import account_hint, detect_conversational, detect_intent
+        kind = detect_conversational(text)
+        if kind:
+            # Talk to the person: answer the question that was asked. No account workflow, no escalation, no ticket.
+            ctx.conversational = True
+            hint = account_hint(self.toolbox, ctx.user_id) if kind != "thanks" else None
+            messages.append({"role": "user", "content":
+                             f"Signed-in user: {profile.get('display_name')} ({ctx.user_id}).\n"
+                             f"<user_message>\n{text}\n</user_message>\n"
+                             f"<conversation_mode kind='{kind}'>This is a conversational message, not a support request. "
+                             "Answer it directly and warmly using the 'About you' section of your instructions. "
+                             "response_type must be 'answer'; no steps, no citations, no ticket, no tool calls."
+                             + (f" At the end, add this one-line offer exactly: \"{hint}\"" if hint else "")
+                             + "</conversation_mode>"})
+            resp = self.llm.chat(messages, usage, tools=None, response_format=REPLY_JSON_SCHEMA, max_tokens=500)
+            try:
+                reply = AgentReply.model_validate_json(resp.choices[0].message.content or "")
+            except ValidationError:
+                raise LLMUnavailable("conversational reply did not match the schema") from None
+            reply.response_type, reply.steps, reply.citations, reply.ticket_draft_id = "answer", [], [], None
+            return reply
+        kb_context = self.toolbox.prefetch(ctx, text)
         intent = detect_intent(text)
         if intent == "access":
             acc = self.toolbox.call(ctx, "check_group_access", {"resource": text})
             if acc.get("ok"):
                 preflight = ("\n<access_check note='Deterministic AD group check already run for this message'>\n"
                              + json.dumps({k: v for k, v in acc.items() if k != "kb_sections"}) + "\n</access_check>")
-        if intent in {"lockout", "password", "disabled", "login", "mfa", "vpn", "outlook", None}:
+        if intent in {"lockout", "password", "disabled", "login", "mfa", "vpn", "outlook"}:
             # Deterministic account pre-flight (no model call): the escalation policy must never depend on
             # whether the model chose to call diagnostics. Found via the live regression suite (case A07).
             diag = run_diagnostics(self.directory, ctx.user_id)
@@ -308,7 +328,7 @@ class AgentService:
             reply.message += (" I could not find knowledge base guidance for this, so I have not listed steps. "
                               "I can prepare a ticket for a support engineer.")
         # Deterministic escalation policy: privileged fixes always get a ticket draft, whatever the model decided.
-        policy = turn_policy(ctx, user_text, reply.response_type)
+        policy = None if ctx.conversational else turn_policy(ctx, user_text, reply.response_type)
         if policy and not ctx.ticket_draft:
             flags.append("policy_escalation_enforced:" + policy["trigger"])
             self._policy_draft(ctx, policy, user_text, reply.steps[:5], [c.source_id for c in reply.citations])
@@ -339,21 +359,36 @@ class AgentService:
         if reply.response_type == "escalate" and not real:
             flags.append("escalation_without_draft")
         # Claim consistency: the reply must not contradict the deterministic ticket draft or mention privileged groups.
+        # Surgical: only sentences that make a false claim are removed; the explanation is kept, and the true
+        # draft facts are appended. (Replacing the whole reply lost useful root-cause explanations.)
         draft = ctx.ticket_draft
-        low_msg = reply.message.lower()
-        priv_named = [g for g in PRIVILEGED_GROUPS if g.lower() in low_msg]
-        wrong_prio = bool(draft) and bool(re.search(r"\b(p[1-4]|priority [1-4])\b", low_msg)) and \
-            not re.search(rf"\b({draft['priority'].lower()}|priority {draft['priority'][1]})\b", low_msg)
-        groups = ["identity ops", "desktop support", "remote access", "messaging-l2", "service desk"]
-        wrong_group = bool(draft) and any(g in low_msg for g in groups) and draft["assignment_group"].lower().split(" ", 1)[-1] \
-            not in low_msg and draft["assignment_group"].lower() not in low_msg
-        if priv_named and reply.response_type != "refuse" or wrong_prio or wrong_group:
+        groups = ["identity ops", "desktop support", "remote access", "messaging-l2", "service desk", "domain admins"]
+        own_group = draft["assignment_group"].lower() if draft else ""
+
+        def false_claim(sent: str) -> bool:
+            low = sent.lower()
+            if any(g.lower() in low for g in PRIVILEGED_GROUPS) and reply.response_type != "refuse":
+                return True
+            if not draft:
+                return False
+            about_ticket = bool(re.search(r"\b(ticket|draft|assign|route|escalat|priority)", low))
+            prio = re.search(r"\b(p[1-4]|priority [1-4])\b", low)
+            if about_ticket and prio and not re.search(rf"\b({draft['priority'].lower()}|priority {draft['priority'][1]})\b", low):
+                return True
+            named = [g for g in groups if g in low]
+            if about_ticket and named and not any(g in own_group for g in named):
+                return True
+            return False
+
+        sentences = re.split(r"(?<=[.!?])\s+", reply.message.strip())
+        kept = [x for x in sentences if not false_claim(x)]
+        if len(kept) != len(sentences):
             flags.append("inconsistent_claim_rewritten")
+            msg = " ".join(kept).strip()
             if draft:
-                reply.message = (f"I have prepared a ticket draft for you: {draft['subcategory']}, priority {draft['priority']}, "
-                                 f"for {draft['assignment_group']}. Please review it and press Confirm to submit it.")
-            else:
-                reply.message = "I can help with your IT issue. Please describe the problem you are seeing."
+                msg += (f" I have prepared a ticket draft: {draft['subcategory']}, priority {draft['priority']}, for "
+                        f"{draft['assignment_group']}. Please review it and press Confirm to submit it.")
+            reply.message = msg.strip() or "I can help with your IT issue. Please describe the problem you are seeing."
         # Human-approval integrity: the agent must never claim it submitted a ticket.
         low = reply.message.lower()
         if any(p in low for p in TICKET_CLAIM):

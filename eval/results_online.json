@@ -17,12 +17,12 @@
     ],
     "cases_with_ungrounded_output_corrected": 0,
     "fallbacks": 0,
-    "latency_ms_avg": 4150,
-    "latency_ms_p95": 8375,
-    "latency_ms_max": 11085,
-    "prompt_tokens": 47379,
-    "completion_tokens": 5912,
-    "est_cost_usd": 0.0284,
+    "latency_ms_avg": 4719,
+    "latency_ms_p95": 11956,
+    "latency_ms_max": 13296,
+    "prompt_tokens": 51498,
+    "completion_tokens": 5916,
+    "est_cost_usd": 0.0301,
     "avg_model_calls_per_turn": 1.05
   },
   "rows": [
@@ -39,9 +39,9 @@
         "KB-AD-001"
       ],
       "group": "IAM-L2 Identity Ops (AD)",
-      "latency_ms": 11085,
-      "prompt_tokens": 4115,
-      "completion_tokens": 633,
+      "latency_ms": 11956,
+      "prompt_tokens": 4294,
+      "completion_tokens": 753,
       "model_calls": 2,
       "flags": [],
       "ungrounded_flags": []
@@ -56,16 +56,15 @@
       "group_ok": null,
       "engine": "online",
       "cited": [
-        "KB-AD-002",
-        "KB-AD-005"
+        "KB-AD-002"
       ],
       "group": null,
-      "latency_ms": 5216,
-      "prompt_tokens": 3138,
-      "completion_tokens": 376,
+      "latency_ms": 6462,
+      "prompt_tokens": 3380,
+      "completion_tokens": 327,
       "model_calls": 2,
       "flags": [
-        "governing_citation_added:KB-AD-002#s4"
+        "citation_normalised:KB-AD-002"
       ],
       "ungrounded_flags": []
     },
@@ -82,9 +81,9 @@
         "KB-AD-002"
       ],
       "group": null,
-      "latency_ms": 6834,
-      "prompt_tokens": 3197,
-      "completion_tokens": 464,
+      "latency_ms": 8000,
+      "prompt_tokens": 3500,
+      "completion_tokens": 503,
       "model_calls": 2,
       "flags": [],
       "ungrounded_flags": []
@@ -102,9 +101,9 @@
         "KB-AD-004"
       ],
       "group": "IAM-L2 Identity Ops (AD)",
-      "latency_ms": 4605,
-      "prompt_tokens": 2514,
-      "completion_tokens": 307,
+      "latency_ms": 4479,
+      "prompt_tokens": 2760,
+      "completion_tokens": 311,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []
@@ -122,9 +121,9 @@
         "KB-AD-004"
       ],
       "group": null,
-      "latency_ms": 5577,
-      "prompt_tokens": 2425,
-      "completion_tokens": 288,
+      "latency_ms": 4716,
+      "prompt_tokens": 2671,
+      "completion_tokens": 299,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []
@@ -142,13 +141,11 @@
         "KB-AD-010"
       ],
       "group": "IAM-L2 Identity Ops (AD)",
-      "latency_ms": 6027,
-      "prompt_tokens": 3422,
-      "completion_tokens": 482,
+      "latency_ms": 6735,
+      "prompt_tokens": 3665,
+      "completion_tokens": 445,
       "model_calls": 2,
-      "flags": [
-        "inconsistent_claim_rewritten"
-      ],
+      "flags": [],
       "ungrounded_flags": []
     },
     {
@@ -165,13 +162,11 @@
         "KB-MS-012"
       ],
       "group": "IAM-L2 Identity Ops (AD)",
-      "latency_ms": 4039,
-      "prompt_tokens": 2523,
-      "completion_tokens": 270,
+      "latency_ms": 4173,
+      "prompt_tokens": 2769,
+      "completion_tokens": 259,
       "model_calls": 1,
-      "flags": [
-        "inconsistent_claim_rewritten"
-      ],
+      "flags": [],
       "ungrounded_flags": []
     },
     {
@@ -188,9 +183,9 @@
         "KB-MS-012"
       ],
       "group": null,
-      "latency_ms": 5103,
-      "prompt_tokens": 2550,
-      "completion_tokens": 297,
+      "latency_ms": 4477,
+      "prompt_tokens": 2796,
+      "completion_tokens": 271,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []
@@ -208,9 +203,9 @@
         "KB-AD-009"
       ],
       "group": "EUC-L2 Desktop Support",
-      "latency_ms": 4530,
-      "prompt_tokens": 2388,
-      "completion_tokens": 336,
+      "latency_ms": 5466,
+      "prompt_tokens": 2633,
+      "completion_tokens": 347,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []
@@ -228,9 +223,9 @@
         "KB-AD-007"
       ],
       "group": null,
-      "latency_ms": 3935,
-      "prompt_tokens": 2422,
-      "completion_tokens": 235,
+      "latency_ms": 4303,
+      "prompt_tokens": 2668,
+      "completion_tokens": 237,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []
@@ -248,9 +243,9 @@
         "KB-AD-006"
       ],
       "group": null,
-      "latency_ms": 3949,
-      "prompt_tokens": 2373,
-      "completion_tokens": 282,
+      "latency_ms": 4516,
+      "prompt_tokens": 2619,
+      "completion_tokens": 271,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []
@@ -268,9 +263,9 @@
         "KB-AD-008"
       ],
       "group": null,
-      "latency_ms": 3571,
-      "prompt_tokens": 2130,
-      "completion_tokens": 234,
+      "latency_ms": 3418,
+      "prompt_tokens": 2376,
+      "completion_tokens": 177,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []
@@ -286,9 +281,9 @@
       "engine": "online",
       "cited": [],
       "group": null,
-      "latency_ms": 2216,
-      "prompt_tokens": 2328,
-      "completion_tokens": 114,
+      "latency_ms": 2700,
+      "prompt_tokens": 2527,
+      "completion_tokens": 125,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []
@@ -306,9 +301,9 @@
         "KB-AD-002"
       ],
       "group": null,
-      "latency_ms": 4883,
-      "prompt_tokens": 2498,
-      "completion_tokens": 329,
+      "latency_ms": 4475,
+      "prompt_tokens": 2744,
+      "completion_tokens": 315,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []
@@ -407,9 +402,9 @@
         "KB-MS-001"
       ],
       "group": "IAM-L2 Identity Ops (AD)",
-      "latency_ms": 8375,
-      "prompt_tokens": 4171,
-      "completion_tokens": 726,
+      "latency_ms": 13296,
+      "prompt_tokens": 4419,
+      "completion_tokens": 733,
       "model_calls": 2,
       "flags": [],
       "ungrounded_flags": []
@@ -424,12 +419,13 @@
       "group_ok": null,
       "engine": "online",
       "cited": [
-        "KB-MS-001"
+        "KB-MS-001",
+        "KB-MS-002"
       ],
       "group": null,
-      "latency_ms": 3307,
-      "prompt_tokens": 2625,
-      "completion_tokens": 229,
+      "latency_ms": 5151,
+      "prompt_tokens": 2871,
+      "completion_tokens": 259,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []
@@ -448,9 +444,9 @@
         "KB-MS-003"
       ],
       "group": null,
-      "latency_ms": 3917,
-      "prompt_tokens": 2560,
-      "completion_tokens": 310,
+      "latency_ms": 4777,
+      "prompt_tokens": 2806,
+      "completion_tokens": 284,
       "model_calls": 1,
       "flags": [],
       "ungrounded_flags": []

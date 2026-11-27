@@ -52,6 +52,7 @@ select, textarea { width: 100%; font: inherit; color: var(--ink); background: va
 .warnbox { margin-top: 8px; padding: 6px 9px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; }
 .composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
 .composer textarea { resize: none; }
+button#send { white-space: nowrap; min-width: 84px; }
 button#send, .primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 0 18px; font: inherit; font-weight: 600; cursor: pointer; }
 button:disabled { opacity: .55; cursor: wait; }
 .row-meta { display: flex; justify-content: space-between; padding: 0 12px 10px; font-size: 12px; }

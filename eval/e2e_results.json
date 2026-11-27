@@ -75,7 +75,7 @@
     {
       "name": "portal: evidence shows AD findings + root cause + citations",
       "ok": true,
-      "detail": "AD diagnostics (7 checks, 2026-11-27 12:57 UTC) LOCKED_OUT The account is locked"
+      "detail": "AD diagnostics (7 checks, 2026-11-27 14:50 UTC) LOCKED_OUT The account is locked"
     },
     {
       "name": "portal: agent trace shows tools, flags, tokens",

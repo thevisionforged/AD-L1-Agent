@@ -101,8 +101,8 @@ async function send(p, text) {
   rec('ops: queue lists 12 AD tickets', (await p.$$('#queue tbody tr')).length === 12);
 
   async function openTicket(num) {
-    const rows = await p.$$('#queue tbody tr');
-    for (const row of rows) { if ((await row.innerText()).startsWith(num)) { await row.click(); break; } }
+    // Locator re-resolves on every attempt, so a queue re-render (e.g. after "Triage all") cannot detach it.
+    await p.locator('#queue tbody tr', { hasText: num }).first().click();
     await p.waitForSelector(`#detail h2:has-text("${num}")`);
   }
   async function triage(num) {
@@ -156,8 +156,8 @@ async function send(p, text) {
   await p.click('.otab[data-p=approvals]'); await p.waitForSelector('#approvals .action');
   const pend = parseInt(await p.innerText('#pendcount'), 10);
   rec('ops: approvals tab lists pending actions', pend > 5, `${pend} pending`);
-  const kbCard = await (async () => { for (const c of await p.$$('#approvals .action')) { if ((await c.innerText()).includes('kb_publish')) return c; } })();
-  if (kbCard) { await (await kbCard.$('text=Approve & execute')).click(); await p.waitForTimeout(1200); }
+  const kbLoc = p.locator('#approvals .action', { hasText: 'kb_publish' }).first();
+  if (await kbLoc.count()) { await kbLoc.locator('text=Approve & execute').click(); await p.waitForTimeout(1200); }
   const cbs = await p.$$('.bulkcb');
   for (const cb of cbs.slice(0, 3)) await cb.check();
   await p.click('#bulk'); await p.waitForTimeout(2000);
