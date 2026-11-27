@@ -81,6 +81,13 @@ function render(res, label) {
     a.appendChild(c);
   });
   if (res.status === "awaiting_approval") a.appendChild(el("div", "warnbox", "Run paused: waiting for your approval"));
+  const audit = el("div", "audit");
+  if (res.method) audit.appendChild(el("div", null, `method: ${res.method === "model" ? "AI agent" : res.method === "rule_based_fallback" ? "rule-based fallback" : res.method}`));
+  if (res.budget) audit.appendChild(el("div", null, `tool budget: ${res.budget.attempts}/${res.budget.limit}` + (res.budget.records.some((r) => r.error_code) ? " · rejected: " + res.budget.records.filter((r) => r.error_code).map((r) => `${r.tool} (${r.error_code})`).join(", ") : "")));
+  (res.security_flags || []).forEach((f) => audit.appendChild(el("div", "warn", `security: ${f}`)));
+  (res.validation_issues || []).forEach((f) => audit.appendChild(el("div", "warn", `validation: ${f}`)));
+  (res.limitations || []).forEach((f) => audit.appendChild(el("div", "warn", `limitation: ${f}`)));
+  if (audit.children.length) a.appendChild(audit);
   a.scrollTop = a.scrollHeight;
   const tk = $("tickets"); tk.replaceChildren();
   (res.tickets || []).forEach((t) => tk.appendChild(el("div", "t", `${t.number} · ${t.priority} · ${t.subcategory} → ${t.assignment_group} (${t.status})`)));

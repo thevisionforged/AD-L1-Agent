@@ -10,3 +10,5 @@
 .approval .btns { display: flex; gap: 8px; margin-top: 8px; }
 .approval button { padding: 7px 14px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
 .turn-sep { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin: 10px 0 6px; }
+.audit { font-size: 11.5px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 5px; margin-bottom: 8px; }
+.audit .warn { color: var(--warn); }

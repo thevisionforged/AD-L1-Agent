@@ -103,6 +103,22 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1
 
 Code: `src/l1agent/v2/` (`agents_app.py`, `graph_connector.py`, `snow_connector.py`, `teams_connector.py`) and `src/l1agent/entra.py`. Tests: `tests/test_v2.py`, `tests/test_org_integration.py`.
 
+### v2 agent guarantees (verified by specs)
+
+The model drives the loop; code enforces the limits. Specs: `tests/test_v2_agent_loop.py` (29 scripted-model specs, real SDK loop, no network) and `eval/v2_live_spec.py` (21 checks against the real OpenAI API; results in `eval/results/v2_live_spec.json`).
+
+| Guarantee | How |
+|---|---|
+| Secrets never reach the model | input checked and passwords/keys redacted **before** the run; SDK guardrail sequential (`run_in_parallel=False`) |
+| Injection / other people refused with zero model calls | deterministic input guard |
+| Bounded work | 10 tool calls per turn (shared with the sub-agent), one call at a time, 8 model turns, 90 s deadline |
+| No repeated or oversized calls | `DUPLICATE_CALL`, `INVALID_ARGUMENTS`; tool results capped at 4,000 characters |
+| No fabricated evidence | KB citations the agent did not retrieve this turn are removed and reported |
+| No leaks | replies containing the instructions or a key are rejected |
+| Always answers | timeout, unreachable, 401, 429, 404, 5xx, malformed output or turn limit → rule-based fallback, reason in `limitations` |
+| Human in control | `submit_ticket` pauses for the user's approval; single use; owner only |
+| Least privilege | tools take no user identifier from the model; they act only for the signed-in user |
+
 ### Use it in your organisation (Entra ID, Graph, ServiceNow, Teams)
 
 | Connector | Switch on with | What it does |
