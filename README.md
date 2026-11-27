@@ -52,6 +52,8 @@ Two web experiences on one local backend:
 
 Full details: [`docs/architecture.md`](docs/architecture.md) and the diagram in `docs/architecture.png`.
 
+> **New to this? Follow the baby-step guide [docs/RUN_DEMO_GUIDE.md](docs/RUN_DEMO_GUIDE.md)** (Windows, macOS, Linux, demo click-path, troubleshooting).
+
 ## 5. Prerequisites
 
 * Windows 10/11 or Windows Server with **Python 3.13** (3.11+ works) and the `py` launcher or `python` on PATH
