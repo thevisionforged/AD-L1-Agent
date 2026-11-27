@@ -87,6 +87,22 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1
 * The demo runs with `AUTH_MODE=demo` (user/engineer pickers). Production uses `AUTH_MODE=easyauth` (Microsoft Entra ID, app roles `AD.Engineer` / `AD.Approver`); see [`docs/PRODUCTION_DEPLOYMENT_GUIDE.md`](docs/PRODUCTION_DEPLOYMENT_GUIDE.md)
 * Optional Foundry hosted-agent entrypoint: `.\.venv\Scripts\python.exe -m pip install -r requirements-foundry.txt`, then `.\.venv\Scripts\python.exe src\foundry_host.py` (Responses protocol on port 8088)
 
+### v2: real agent on the OpenAI Agents SDK
+
+**http://127.0.0.1:8000/v2** (needs `OPENAI_API_KEY` in `.env`). v1 is unchanged.
+
+| | v1 (`/`) | v2 (`/v2`) |
+|---|---|---|
+| Control flow | deterministic pipeline; the LLM drafts the replies | **the model picks its tools** in an Agents SDK loop (`Runner.run`) |
+| Specialist | diagnostics run in code | **Identity Diagnostics sub-agent**, called as a tool (`Agent.as_tool`) |
+| Human approval | Confirm button | **SDK human-in-the-loop**: `submit_ticket` has `needs_approval=True`; the run pauses, then resumes from the saved `RunState` |
+| Guardrails | input/output checks | the same checks, wired as an SDK `input_guardrail` (tripwire) |
+| Memory | conversation store | SDK `SQLiteSession` |
+| Observability | Agent trace tab | tool calls in the UI, and **platform.openai.com → Logs → Traces**, workflow `AD L1 Agent v2 (hack-grp-22)` |
+| Directory data | synthetic | synthetic by default; **`CONNECTOR_MODE=live` reads real Microsoft Graph** (user, transitive groups, sign-in failures with AADSTS codes) using `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID` and `GRAPH_CLIENT_SECRET` (app permissions User.Read.All, GroupMember.Read.All, AuditLog.Read.All, all read-only) |
+
+Code: `src/l1agent/v2/` (`agents_app.py`, `graph_connector.py`). Tests: `tests/test_v2.py`.
+
 ## 8. How to Test
 
 **Automated (no key needed, about 10 s):**

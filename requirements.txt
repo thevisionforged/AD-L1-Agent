@@ -1,5 +1,6 @@
 # Runtime dependencies (pinned, from pip freeze of the project venv, trimmed to what is used)
 openai==3.60.0
+openai-agents==0.26.0
 fastapi==0.165.0
 starlette==1.10.0
 uvicorn==0.54.0

@@ -363,3 +363,77 @@ def tracker(request: Request, x_engineer_id: str | None = Header(default=None)) 
 def tracker_publish(request: Request, x_engineer_id: str | None = Header(default=None)) -> dict[str, Any]:
     _eng(request, x_engineer_id)
     return ops.publish_tracker()
+
+
+# =============================================================================== v2: OpenAI Agents SDK
+from .v2.agents_app import V2Service  # noqa: E402
+
+try:
+    v2 = V2Service(service)
+    v2_error = None
+except Exception as e:  # noqa: BLE001 - e.g. CONNECTOR_MODE=live without Graph settings
+    v2, v2_error = None, str(e)
+
+
+class V2ChatIn(BaseModel):
+    user_id: str | None = Field(default=None, max_length=16)
+    message: str = Field(max_length=4000)
+    conversation_id: str | None = Field(default=None, max_length=40)
+
+
+class V2DecisionIn(BaseModel):
+    user_id: str | None = Field(default=None, max_length=16)
+    approve: bool
+
+
+def _v2_ready() -> V2Service:
+    if v2 is None:
+        raise HTTPException(status_code=503, detail=f"v2 unavailable: {v2_error}")
+    if not v2.available:
+        raise HTTPException(status_code=503, detail="v2 needs OPENAI_API_KEY in .env (it is a real OpenAI Agents SDK agent)")
+    return v2
+
+
+@app.get("/v2")
+def v2_page() -> FileResponse:
+    return FileResponse(STATIC / "v2.html")
+
+
+@app.get("/api/v2/info")
+def v2_info() -> dict[str, Any]:
+    return {"available": bool(v2 and v2.available), "error": v2_error, "connector_mode": v2.mode if v2 else None,
+            "model": settings.model, "trace_workflow": "AD L1 Agent v2 (hack-grp-22)", "sdk": "openai-agents"}
+
+
+@app.post("/api/v2/chat")
+async def v2_chat(body: V2ChatIn, request: Request) -> dict[str, Any]:
+    svc = _v2_ready()
+    uid = auth.end_user(request, body.user_id)
+    now = time.time()
+    q = _hits[uid]
+    while q and now - q[0] > 60:
+        q.popleft()
+    if len(q) >= RATE_PER_MIN:
+        raise HTTPException(status_code=429, detail="Too many messages. Please wait a minute and try again.")
+    q.append(now)
+    upn = None
+    if not auth.demo:
+        from .auth import parse_easyauth
+        p = parse_easyauth(request.headers.get("x-ms-client-principal"))
+        upn = p.upn if p else None
+    else:
+        import os
+        upn = os.getenv("GRAPH_DEMO_UPN") or None
+    return await svc.chat(uid, body.message, body.conversation_id, upn)
+
+
+@app.post("/api/v2/approvals/{approval_id}")
+async def v2_decide(approval_id: str, body: V2DecisionIn, request: Request) -> dict[str, Any]:
+    svc = _v2_ready()
+    uid = auth.end_user(request, body.user_id)
+    try:
+        return await svc.decide(approval_id, uid, body.approve)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="approval not found or already decided") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="this approval belongs to another user") from None

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AD L1 Agent v2</title>
+  <meta name="author" content="Samarth Pandey (hack-grp-22)">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/v2.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logo v2logo" aria-hidden="true">v2</div>
+    <div>
+      <h1>AD L1 Agent v2 <span class="sdk">OpenAI Agents SDK</span></h1>
+      <p class="sub">Real agent loop: the model chooses its tools, consults a specialist sub-agent, and pauses for your approval before acting</p>
+    </div>
+  </div>
+  <div class="status">
+    <a class="link" href="/">v1 portal ↗</a>
+    <a class="link" href="/ops">Ops console ↗</a>
+    <span id="mode" class="badge">…</span>
+  </div>
+</header>
+
+<div class="disclosure" role="note">
+  <strong>Live AI agent.</strong> Each answer is produced by an OpenAI Agents SDK run on <span id="model">the model</span>; every tool call is shown on the right
+  and traced in <b>platform.openai.com → Logs → Traces</b> (workflow <i>AD L1 Agent v2 (hack-grp-22)</i>). Data source: <b id="datasrc">…</b>.
+  The agent never asks for passwords and submits nothing without your approval.
+</div>
+
+<main class="layout">
+  <aside class="panel left">
+    <h2>Signed-in user</h2>
+    <select id="user" aria-label="Signed-in user"></select>
+    <h2>Try</h2>
+    <div class="samples" id="samples"></div>
+    <h2>My tickets</h2>
+    <div id="tickets" class="tickets"><p class="muted">No tickets yet.</p></div>
+  </aside>
+
+  <section class="panel chat">
+    <div id="log" class="log" aria-live="polite">
+      <div class="msg bot"><div class="bubble">Hi! I'm the AD L1 Agent v2. Ask me anything about your sign-in, password, MFA, access or tickets.</div></div>
+    </div>
+    <form id="form" class="composer" autocomplete="off">
+      <textarea id="input" rows="2" maxlength="3000" placeholder="Type your message… (never type your password)"></textarea>
+      <button id="send" type="submit">Send</button>
+    </form>
+    <div class="row-meta"><span id="meta" class="muted"></span><button id="newconv" class="link" type="button">New conversation</button></div>
+  </section>
+
+  <aside class="panel right">
+    <h2>Agent activity (live tool calls)</h2>
+    <div id="activity"><p class="muted">The agent's tool calls, sub-agent consultations and approvals appear here.</p></div>
+  </aside>
+</main>
+<footer class="foot">Built by <strong>Samarth Pandey</strong> · <strong>hack-grp-22</strong> · v2 on the OpenAI Agents SDK</footer>
+<script src="/static/v2.js"></script>
+</body>
+</html>
