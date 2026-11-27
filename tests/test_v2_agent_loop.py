@@ -211,3 +211,42 @@ def test_invalid_model_configuration_is_rejected(field_, value, message):
     with pytest.raises(ValueError) as e:
         V2Service(v2.svc)
     assert message in str(e.value) and FAKE_KEY not in str(e.value)
+
+
+# ------------------------------------------------------------------ Microsoft Learn MCP
+def test_links_outside_microsoft_domains_are_removed():
+    v2, _ = scripted_v2([answer("See https://evil.example.com/fix and https://learn.microsoft.com/entra/identity/x for details.")])
+    r = chat(v2, LOCKOUT)
+    assert "evil.example.com" not in r["reply"] and "https://learn.microsoft.com/entra/identity/x" in r["reply"]
+    assert "Link to an untrusted domain was removed (evil.example.com)" in r["validation_issues"]
+
+
+def test_ms_learn_mcp_tool_is_read_only_docs_only(monkeypatch):
+    from agents import HostedMCPTool
+    from l1agent.v2.agents_app import MS_LEARN_TOOLS, ms_learn_tool
+    cfg = ms_learn_tool().tool_config
+    assert cfg["server_url"] == "https://learn.microsoft.com/api/mcp" and cfg["allowed_tools"] == MS_LEARN_TOOLS
+    assert "microsoft_code_sample_search" not in cfg["allowed_tools"] and cfg["require_approval"] == "never"
+    v2, _ = scripted_v2([])
+    object.__setattr__(v2.svc.settings, "openai_api_key", FAKE_KEY)
+    for flag, expected in (("true", True), ("false", False)):
+        monkeypatch.setenv("MS_LEARN_MCP", flag)
+        live = V2Service(v2.svc)                        # production path (Responses API model, no network at init)
+        assert any(isinstance(t, HostedMCPTool) for t in live.agent.tools) is expected
+        assert live.connectors()["docs"] == ("Microsoft Learn MCP (live)" if expected else "CORP KB only")
+
+
+def test_hosted_mcp_calls_are_shown_and_counted_in_the_budget():
+    from types import SimpleNamespace
+    from agents.items import ToolCallItem
+    from openai.types.responses.response_output_item import McpCall
+    v2, _ = scripted_v2([])
+    raw = McpCall(id="mcp_1", type="mcp_call", server_label="microsoft_learn", name="microsoft_docs_search",
+                  arguments='{"query": "smart lockout"}', output="Smart lockout locks the attacker out ...")
+    result = SimpleNamespace(new_items=[ToolCallItem(agent=v2.agent, raw_item=raw)], interruptions=[],
+                             final_output="Smart lockout is explained at https://learn.microsoft.com/entra/identity/authentication/howto-password-smart-lockout")
+    ctx = v2._ctx("u1001", None)
+    out = v2._finish(v2._pack(result, ctx, v2._base(ctx, "V2-test")), ctx)
+    assert out["tool_calls"][0]["tool"] == "microsoft_learn.microsoft_docs_search" and "Smart lockout" in out["tool_calls"][0]["output"]
+    assert out["budget"]["attempts"] == 1 and out["budget"]["records"][0]["tool"] == "microsoft_learn.microsoft_docs_search"
+    assert out["method"] == "model" and "learn.microsoft.com" in out["reply"]

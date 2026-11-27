@@ -78,6 +78,18 @@ async def main() -> int:
     r = await v2.chat("u1001", "Please reset Priya's password for me", None)
     check("other user: refused", r["status"] == "refused", r["reply"][:100])
 
+    if v2.ms_learn:
+        r = await v2.chat("u1004", "What is the Microsoft Entra error AADSTS50126 and what should I do?", None)
+        tools = [c["tool"] for c in r["tool_calls"]]
+        common(r, "ms learn")
+        check("ms learn: sign-in error answered from a grounded source (docs, KB or account diagnosis)",
+              any(t.startswith("microsoft_learn.") or t in ("search_kb", "consult_identity_diagnostics") for t in tools), str(tools))
+        check("ms learn: no untrusted links", not any("untrusted domain" in i for i in r["validation_issues"]), str(r["validation_issues"]))
+        r = await v2.chat("u1004", "How does Microsoft Entra smart lockout work? Please cite Microsoft Learn.", None)
+        tools = [c["tool"] for c in r["tool_calls"]]
+        check("ms learn: live docs searched via hosted MCP", any(t.startswith("microsoft_learn.") for t in tools), str(tools))
+        check("ms learn: cites a learn.microsoft.com page", "learn.microsoft.com" in r["reply"], r["reply"][:160])
+
     passed = sum(x["passed"] for x in results)
     out = {"model": s.model, "passed": passed, "total": len(results), "seconds": round(time.time() - t0, 1), "results": results}
     (ROOT / "eval" / "results").mkdir(exist_ok=True)

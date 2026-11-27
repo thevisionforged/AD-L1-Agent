@@ -10,6 +10,7 @@ const SAMPLES = [
   ["u1001", "Yes, create the ticket"],
   ["u1001", "Yes, submit it"],
   ["u1001", "What's the status of my ticket?"],
+  ["u1004", "How does Microsoft Entra smart lockout work? Cite Microsoft Learn."],
   ["u1002", "VPN says authentication failed since this morning"],
   ["u1003", "I need access to the finance share"],
   ["u1005", "I lost my phone and can't approve MFA"],
@@ -30,7 +31,7 @@ async function init() {
   m.className = "badge " + (info.available ? "online" : "offline");
   $("model").textContent = info.model;
   const c = info.connectors || {};
-  $("datasrc").textContent = `directory: ${c.directory || "synthetic directory"} · tickets: ${c.tickets || "built-in"} · Teams: ${c.teams || "not connected"}`;
+  $("datasrc").textContent = `directory: ${c.directory || "synthetic directory"} · tickets: ${c.tickets || "built-in"} · Teams: ${c.teams || "not connected"} · docs: ${c.docs || "CORP KB only"}`;
   const sess = await api("/api/session");
   demoMode = sess.auth_mode === "demo";
   if (sess.signed_in) {

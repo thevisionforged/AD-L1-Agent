@@ -127,6 +127,7 @@ The model drives the loop; code enforces the limits. Specs: `tests/test_v2_agent
 | **Microsoft Graph** | `CONNECTOR_MODE=live` | read-only diagnosis of the signed-in user's own account, groups and sign-in failures |
 | **ServiceNow** | `SNOW_INSTANCE` + integration user or OAuth | a real incident on approval; live status of the caller's open incidents |
 | **Teams** | `TEAMS_WEBHOOK_URL` | an Adaptive Card in the AD team channel for each new ticket |
+| **Microsoft Learn MCP** | `MS_LEARN_MCP=true` (default) | live, cited Microsoft Learn docs via OpenAI's hosted MCP tool (`microsoft_docs_search`/`microsoft_docs_fetch` only; read-only, no key; links outside Microsoft domains are removed) |
 
 Step-by-step setup: **[docs/ORG_ROLLOUT_GUIDE.md](docs/ORG_ROLLOUT_GUIDE.md)**. Check your settings with `python -m l1agent.v2.check_connectors you@company.com`.
 
